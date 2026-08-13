@@ -352,6 +352,22 @@ void setup() {
     identity.begin(&settings, DEVICE_ID_PREFIX);
     gHostname = identity.hostname();
 
+    // Identity banner. Logged before anything else so it is the first thing on
+    // the wire: with several doors on one network, "which unit am I talking to?"
+    // is the question every other diagnostic depends on. webService.log() echoes
+    // to Serial immediately and is buffered for /webserial once the server is up.
+    // On boards with a reboot-surviving USB-UART (the classic DevKit) this is
+    // visible in the serial monitor without a browser or even a WiFi connection.
+    webService.log(String("[id] device=") + identity.deviceId() +
+                   "  host=" + gHostname + ".local" +
+                   "  board=" BOARD_NAME);
+    {
+        String door = identity.doorName();
+        String site = identity.siteName();
+        webService.log(String("[id] door=") + (door.length() ? door : "(unnamed)") +
+                       "  site=" + (site.length() ? site : "(unset)"));
+    }
+
     // -- OLED: single shared Wire bus, brought up once, no scan. --------------
     oledMutex = xSemaphoreCreateMutex();
     Wire.begin(PIN_OLED_SDA, PIN_OLED_SCL);
