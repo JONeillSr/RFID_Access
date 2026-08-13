@@ -1,0 +1,11 @@
+{
+  "name": "WebService",
+  "version": "1.1.0",
+  "description": "Reusable device web service: status, OTA, webserial, telnet, a themeable footer, and a composable /setup page backed by DeviceSettings.",
+  "dependencies": {
+    "DeviceSettings": "*"
+  },
+  "build": {
+    "flags": ["-I../DeviceSettings"]
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "DeviceSettings",
+  "version": "1.0.0",
+  "description": "Reusable NVS-backed key/value settings store (Arduino Preferences) for ESP32 projects."
+}

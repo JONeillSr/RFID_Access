@@ -1,0 +1,9 @@
+{
+  "name": "Display",
+  "version": "2.0.0",
+  "description": "App-agnostic SSD1306 0.96in OLED helper for two-color panels: status, titled message, and header-band primitives. Owns the driver as a member (no heap, no singleton); the caller owns the I2C bus. Project-specific screens draw on raw().",
+  "dependencies": {
+    "adafruit/Adafruit SSD1306": "*",
+    "adafruit/Adafruit GFX Library": "*"
+  }
+}

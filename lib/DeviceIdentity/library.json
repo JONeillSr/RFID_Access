@@ -1,0 +1,11 @@
+{
+  "name": "DeviceIdentity",
+  "version": "1.0.0",
+  "description": "Per-unit device identity for fleet deployments: an efuse-MAC device ID, an mDNS hostname that is unique by default, and operator-set location labels.",
+  "dependencies": {
+    "DeviceSettings": "*"
+  },
+  "build": {
+    "flags": ["-I../DeviceSettings"]
+  }
+}

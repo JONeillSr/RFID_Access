@@ -1,0 +1,3506 @@
+(kicad_sch
+  (version 20250114)
+  (generator "eeschema")
+  (generator_version "10.0")
+  (uuid "833a2281-88b9-4895-9991-641005261499")
+  (paper "A3")
+  (title_block
+    (title "RFID Door Controller")
+    (rev "A")
+    (comment 1 "Universal carrier: XIAO ESP32-C6 or ESP32 DevKit V1")
+  )
+  (lib_symbols
+    (symbol
+      "Device:R"
+      (pin_numbers (hide yes))
+      (pin_names (offset 0))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "R"
+        (at 2.032 0 90)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Value"
+        "R"
+        (at 0 0 90)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Footprint"
+        ""
+        (at -1.778 0 90)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Resistor"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "R res resistor"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "R_*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "R_0_1"
+        (rectangle
+          (start -1.016 -2.54)
+          (end 1.016 2.54)
+          (stroke (width 0.254) (type default))
+          (fill (type none))
+        )
+      )
+      (symbol
+        "R_1_1"
+        (pin
+          passive
+          line
+          (at 0 3.81 270)
+          (length 1.27)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 0 -3.81 90)
+          (length 1.27)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Device:C"
+      (pin_numbers (hide yes))
+      (pin_names (offset 0.254))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "C"
+        (at 0.635 2.54 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Value"
+        "C"
+        (at 0.635 -2.54 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Footprint"
+        ""
+        (at 0.9652 -3.81 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Unpolarized capacitor"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "cap capacitor"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "C_*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "C_0_1"
+        (polyline
+          (pts (xy -2.032 0.762) (xy 2.032 0.762))
+          (stroke (width 0.508) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy -2.032 -0.762) (xy 2.032 -0.762))
+          (stroke (width 0.508) (type default))
+          (fill (type none))
+        )
+      )
+      (symbol
+        "C_1_1"
+        (pin
+          passive
+          line
+          (at 0 3.81 270)
+          (length 2.794)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 0 -3.81 90)
+          (length 2.794)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Device:C_Polarized"
+      (pin_numbers (hide yes))
+      (pin_names (offset 0.254))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "C"
+        (at 0.635 2.54 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Value"
+        "C_Polarized"
+        (at 0.635 -2.54 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Footprint"
+        ""
+        (at 0.9652 -3.81 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Polarized capacitor"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "cap capacitor"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "CP_*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "C_Polarized_0_1"
+        (rectangle
+          (start -2.286 0.508)
+          (end 2.286 1.016)
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy -1.778 2.286) (xy -0.762 2.286))
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy -1.27 2.794) (xy -1.27 1.778))
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start 2.286 -0.508)
+          (end -2.286 -1.016)
+          (stroke (width 0) (type default))
+          (fill (type outline))
+        )
+      )
+      (symbol
+        "C_Polarized_1_1"
+        (pin
+          passive
+          line
+          (at 0 3.81 270)
+          (length 2.794)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 0 -3.81 90)
+          (length 2.794)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Device:D"
+      (pin_numbers (hide yes))
+      (pin_names (offset 1.016) (hide yes))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "D"
+        (at 0 2.54 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Value"
+        "D"
+        (at 0 -2.54 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Footprint"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Diode"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Sim.Device"
+        "D"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Sim.Pins"
+        "1=K 2=A"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "diode"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "TO-???* *_Diode_* *SingleDiode* D_*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "D_0_1"
+        (polyline
+          (pts (xy -1.27 1.27) (xy -1.27 -1.27))
+          (stroke (width 0.254) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy 1.27 1.27) (xy 1.27 -1.27) (xy -1.27 0) (xy 1.27 1.27))
+          (stroke (width 0.254) (type default))
+          (fill (type none))
+        )
+        (polyline (pts (xy 1.27 0) (xy -1.27 0)) (stroke (width 0) (type default)) (fill (type none)))
+      )
+      (symbol
+        "D_1_1"
+        (pin
+          passive
+          line
+          (at -3.81 0 0)
+          (length 2.54)
+          (name "K" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 3.81 0 180)
+          (length 2.54)
+          (name "A" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Device:Buzzer"
+      (pin_names (offset 0.0254) (hide yes))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "BZ"
+        (at 3.81 1.27 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Value"
+        "Buzzer"
+        (at 3.81 -1.27 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Footprint"
+        ""
+        (at -0.635 2.54 90)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at -0.635 2.54 90)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Buzzer, polarized"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "quartz resonator ceramic"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "*Buzzer*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "Buzzer_0_1"
+        (polyline
+          (pts (xy -1.651 1.905) (xy -1.143 1.905))
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy -1.397 2.159) (xy -1.397 1.651))
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+        (arc
+          (start 0 3.175)
+          (mid 3.1612 0)
+          (end 0 -3.175)
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+        (polyline (pts (xy 0 3.175) (xy 0 -3.175)) (stroke (width 0) (type default)) (fill (type none)))
+      )
+      (symbol
+        "Buzzer_1_1"
+        (pin
+          passive
+          line
+          (at -2.54 2.54 0)
+          (length 2.54)
+          (name "+" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -2.54 -2.54 0)
+          (length 2.54)
+          (name "-" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Device:Q_NPN"
+      (pin_numbers (hide yes))
+      (pin_names (offset 0) (hide yes))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "Q"
+        (at 5.08 1.27 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Value"
+        "Q_NPN"
+        (at 5.08 -1.27 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Footprint"
+        ""
+        (at 5.08 2.54 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "NPN bipolar junction transistor"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "BJT"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "Q_NPN_0_1"
+        (polyline (pts (xy -2.54 0) (xy 0.635 0)) (stroke (width 0) (type default)) (fill (type none)))
+        (polyline
+          (pts (xy 0.635 1.905) (xy 0.635 -1.905))
+          (stroke (width 0.508) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy 0.635 0.635) (xy 2.54 2.54))
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy 0.635 -0.635) (xy 2.54 -2.54))
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+        (circle (center 1.27 0) (radius 2.8194) (stroke (width 0.254) (type default)) (fill (type none)))
+        (polyline
+          (pts (xy 1.27 -1.778) (xy 1.778 -1.27) (xy 2.286 -2.286) (xy 1.27 -1.778))
+          (stroke (width 0) (type default))
+          (fill (type outline))
+        )
+      )
+      (symbol
+        "Q_NPN_1_1"
+        (pin
+          input
+          line
+          (at -5.08 0 0)
+          (length 2.54)
+          (name "B" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 2.54 5.08 270)
+          (length 2.54)
+          (name "C" (effects (font (size 1.27 1.27))))
+          (number "3" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 2.54 -5.08 90)
+          (length 2.54)
+          (name "E" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Connector_Generic:Conn_01x02"
+      (pin_names (offset 1.016) (hide yes))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "J"
+        (at 0 2.54 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Value"
+        "Conn_01x02"
+        (at 0 -5.08 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Footprint"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Generic connector, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "connector"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "Connector*:*_1x??_*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "Conn_01x02_1_1"
+        (rectangle
+          (start -1.27 1.27)
+          (end 1.27 -3.81)
+          (stroke (width 0.254) (type default))
+          (fill (type background))
+        )
+        (rectangle
+          (start -1.27 0.127)
+          (end 0 -0.127)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -2.413)
+          (end 0 -2.667)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 0 0)
+          (length 3.81)
+          (name "Pin_1" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -2.54 0)
+          (length 3.81)
+          (name "Pin_2" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Connector_Generic:Conn_01x03"
+      (pin_names (offset 1.016) (hide yes))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "J"
+        (at 0 5.08 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Value"
+        "Conn_01x03"
+        (at 0 -5.08 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Footprint"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Generic connector, single row, 01x03, script generated (kicad-library-utils/schlib/autogen/connector/)"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "connector"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "Connector*:*_1x??_*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "Conn_01x03_1_1"
+        (rectangle
+          (start -1.27 3.81)
+          (end 1.27 -3.81)
+          (stroke (width 0.254) (type default))
+          (fill (type background))
+        )
+        (rectangle
+          (start -1.27 2.667)
+          (end 0 2.413)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 0.127)
+          (end 0 -0.127)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -2.413)
+          (end 0 -2.667)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 2.54 0)
+          (length 3.81)
+          (name "Pin_1" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 0 0)
+          (length 3.81)
+          (name "Pin_2" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -2.54 0)
+          (length 3.81)
+          (name "Pin_3" (effects (font (size 1.27 1.27))))
+          (number "3" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Connector_Generic:Conn_01x04"
+      (pin_names (offset 1.016) (hide yes))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "J"
+        (at 0 5.08 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Value"
+        "Conn_01x04"
+        (at 0 -7.62 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Footprint"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "connector"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "Connector*:*_1x??_*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "Conn_01x04_1_1"
+        (rectangle
+          (start -1.27 3.81)
+          (end 1.27 -6.35)
+          (stroke (width 0.254) (type default))
+          (fill (type background))
+        )
+        (rectangle
+          (start -1.27 2.667)
+          (end 0 2.413)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 0.127)
+          (end 0 -0.127)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -2.413)
+          (end 0 -2.667)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -4.953)
+          (end 0 -5.207)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 2.54 0)
+          (length 3.81)
+          (name "Pin_1" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 0 0)
+          (length 3.81)
+          (name "Pin_2" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -2.54 0)
+          (length 3.81)
+          (name "Pin_3" (effects (font (size 1.27 1.27))))
+          (number "3" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -5.08 0)
+          (length 3.81)
+          (name "Pin_4" (effects (font (size 1.27 1.27))))
+          (number "4" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Connector_Generic:Conn_01x08"
+      (pin_names (offset 1.016) (hide yes))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "J"
+        (at 0 10.16 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Value"
+        "Conn_01x08"
+        (at 0 -12.7 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Footprint"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Generic connector, single row, 01x08, script generated (kicad-library-utils/schlib/autogen/connector/)"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "connector"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "Connector*:*_1x??_*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "Conn_01x08_1_1"
+        (rectangle
+          (start -1.27 8.89)
+          (end 1.27 -11.43)
+          (stroke (width 0.254) (type default))
+          (fill (type background))
+        )
+        (rectangle
+          (start -1.27 7.747)
+          (end 0 7.493)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 5.207)
+          (end 0 4.953)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 2.667)
+          (end 0 2.413)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 0.127)
+          (end 0 -0.127)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -2.413)
+          (end 0 -2.667)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -4.953)
+          (end 0 -5.207)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -7.493)
+          (end 0 -7.747)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -10.033)
+          (end 0 -10.287)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 7.62 0)
+          (length 3.81)
+          (name "Pin_1" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 5.08 0)
+          (length 3.81)
+          (name "Pin_2" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 2.54 0)
+          (length 3.81)
+          (name "Pin_3" (effects (font (size 1.27 1.27))))
+          (number "3" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 0 0)
+          (length 3.81)
+          (name "Pin_4" (effects (font (size 1.27 1.27))))
+          (number "4" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -2.54 0)
+          (length 3.81)
+          (name "Pin_5" (effects (font (size 1.27 1.27))))
+          (number "5" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -5.08 0)
+          (length 3.81)
+          (name "Pin_6" (effects (font (size 1.27 1.27))))
+          (number "6" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -7.62 0)
+          (length 3.81)
+          (name "Pin_7" (effects (font (size 1.27 1.27))))
+          (number "7" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -10.16 0)
+          (length 3.81)
+          (name "Pin_8" (effects (font (size 1.27 1.27))))
+          (number "8" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Connector_Generic:Conn_01x15"
+      (pin_names (offset 1.016) (hide yes))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "J"
+        (at 0 20.32 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Value"
+        "Conn_01x15"
+        (at 0 -20.32 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Footprint"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Generic connector, single row, 01x15, script generated (kicad-library-utils/schlib/autogen/connector/)"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "connector"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "Connector*:*_1x??_*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "Conn_01x15_1_1"
+        (rectangle
+          (start -1.27 19.05)
+          (end 1.27 -19.05)
+          (stroke (width 0.254) (type default))
+          (fill (type background))
+        )
+        (rectangle
+          (start -1.27 17.907)
+          (end 0 17.653)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 15.367)
+          (end 0 15.113)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 12.827)
+          (end 0 12.573)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 10.287)
+          (end 0 10.033)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 7.747)
+          (end 0 7.493)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 5.207)
+          (end 0 4.953)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 2.667)
+          (end 0 2.413)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 0.127)
+          (end 0 -0.127)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -2.413)
+          (end 0 -2.667)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -4.953)
+          (end 0 -5.207)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -7.493)
+          (end 0 -7.747)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -10.033)
+          (end 0 -10.287)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -12.573)
+          (end 0 -12.827)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -15.113)
+          (end 0 -15.367)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (rectangle
+          (start -1.27 -17.653)
+          (end 0 -17.907)
+          (stroke (width 0.1524) (type default))
+          (fill (type none))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 17.78 0)
+          (length 3.81)
+          (name "Pin_1" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 15.24 0)
+          (length 3.81)
+          (name "Pin_2" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 12.7 0)
+          (length 3.81)
+          (name "Pin_3" (effects (font (size 1.27 1.27))))
+          (number "3" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 10.16 0)
+          (length 3.81)
+          (name "Pin_4" (effects (font (size 1.27 1.27))))
+          (number "4" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 7.62 0)
+          (length 3.81)
+          (name "Pin_5" (effects (font (size 1.27 1.27))))
+          (number "5" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 5.08 0)
+          (length 3.81)
+          (name "Pin_6" (effects (font (size 1.27 1.27))))
+          (number "6" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 2.54 0)
+          (length 3.81)
+          (name "Pin_7" (effects (font (size 1.27 1.27))))
+          (number "7" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 0 0)
+          (length 3.81)
+          (name "Pin_8" (effects (font (size 1.27 1.27))))
+          (number "8" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -2.54 0)
+          (length 3.81)
+          (name "Pin_9" (effects (font (size 1.27 1.27))))
+          (number "9" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -5.08 0)
+          (length 3.81)
+          (name "Pin_10" (effects (font (size 1.27 1.27))))
+          (number "10" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -7.62 0)
+          (length 3.81)
+          (name "Pin_11" (effects (font (size 1.27 1.27))))
+          (number "11" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -10.16 0)
+          (length 3.81)
+          (name "Pin_12" (effects (font (size 1.27 1.27))))
+          (number "12" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -12.7 0)
+          (length 3.81)
+          (name "Pin_13" (effects (font (size 1.27 1.27))))
+          (number "13" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -15.24 0)
+          (length 3.81)
+          (name "Pin_14" (effects (font (size 1.27 1.27))))
+          (number "14" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -17.78 0)
+          (length 3.81)
+          (name "Pin_15" (effects (font (size 1.27 1.27))))
+          (number "15" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Relay:SANYOU_SRD_Form_C"
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "K"
+        (at 11.43 3.81 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Value"
+        "SANYOU_SRD_Form_C"
+        (at 11.43 1.27 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Footprint"
+        "Relay_THT:Relay_SPDT_SANYOU_SRD_Series_Form_C"
+        (at 11.43 -1.27 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Datasheet"
+        "http://www.sanyourelay.ca/public/products/pdf/SRD.pdf"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Sanyo SRD relay, Single Pole Miniature Power Relay,"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "Single Pole Relay SPDT"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "Relay*SPDT*SANYOU*SRD*Series*Form*C*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "SANYOU_SRD_Form_C_0_0"
+        (polyline
+          (pts (xy 7.62 5.08) (xy 7.62 2.54) (xy 6.985 3.175) (xy 7.62 3.81))
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+      )
+      (symbol
+        "SANYOU_SRD_Form_C_0_1"
+        (rectangle
+          (start -10.16 5.08)
+          (end 10.16 -5.08)
+          (stroke (width 0.254) (type default))
+          (fill (type background))
+        )
+        (rectangle
+          (start -8.255 1.905)
+          (end -1.905 -1.905)
+          (stroke (width 0.254) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy -7.62 -1.905) (xy -2.54 1.905))
+          (stroke (width 0.254) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy -5.08 5.08) (xy -5.08 1.905))
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy -5.08 -5.08) (xy -5.08 -1.905))
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy -1.905 0) (xy -1.27 0))
+          (stroke (width 0.254) (type default))
+          (fill (type none))
+        )
+        (polyline (pts (xy -0.635 0) (xy 0 0)) (stroke (width 0.254) (type default)) (fill (type none)))
+        (polyline (pts (xy 0.635 0) (xy 1.27 0)) (stroke (width 0.254) (type default)) (fill (type none)))
+        (polyline (pts (xy 1.905 0) (xy 2.54 0)) (stroke (width 0.254) (type default)) (fill (type none)))
+        (polyline (pts (xy 3.175 0) (xy 3.81 0)) (stroke (width 0.254) (type default)) (fill (type none)))
+        (polyline
+          (pts (xy 5.08 -2.54) (xy 3.175 3.81))
+          (stroke (width 0.508) (type default))
+          (fill (type none))
+        )
+        (polyline
+          (pts (xy 5.08 -2.54) (xy 5.08 -5.08))
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+      )
+      (symbol
+        "SANYOU_SRD_Form_C_1_1"
+        (polyline
+          (pts (xy 2.54 3.81) (xy 3.175 3.175) (xy 2.54 2.54) (xy 2.54 5.08))
+          (stroke (width 0) (type default))
+          (fill (type outline))
+        )
+        (pin
+          passive
+          line
+          (at 5.08 -7.62 90)
+          (length 2.54)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 -7.62 90)
+          (length 2.54)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 7.62 7.62 270)
+          (length 2.54)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "3" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 2.54 7.62 270)
+          (length 2.54)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "4" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -5.08 7.62 270)
+          (length 2.54)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "5" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Regulator_Linear:LD1117V33"
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "U"
+        (at -3.81 3.175 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Value"
+        "LD1117V33"
+        (at 0 3.175 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)) (justify left))
+      )
+      (property
+        "Footprint"
+        "Package_TO_SOT_SMD:SOT-223-3_TabPin2"
+        (at 0 5.08 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        "http://www.diodes.com/datasheets/AP1117.pdf"
+        (at 2.54 -6.35 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "1A Low Dropout regulator, positive, 1.5V fixed output, SOT-223"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "linear regulator ldo fixed positive obsolete"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_fp_filters"
+        "SOT?223*TabPin2*"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "LD1117V33_0_1"
+        (rectangle
+          (start -5.08 -5.08)
+          (end 5.08 1.905)
+          (stroke (width 0.254) (type default))
+          (fill (type background))
+        )
+      )
+      (symbol
+        "LD1117V33_1_1"
+        (pin
+          power_in
+          line
+          (at 0 -7.62 90)
+          (length 2.54)
+          (name "GND" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          power_out
+          line
+          (at 7.62 0 180)
+          (length 2.54)
+          (name "VO" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          power_in
+          line
+          (at -7.62 0 0)
+          (length 2.54)
+          (name "VI" (effects (font (size 1.27 1.27))))
+          (number "3" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "power:PWR_FLAG"
+      (power global)
+      (pin_numbers (hide yes))
+      (pin_names (offset 0) (hide yes))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "#FLG"
+        (at 0 1.905 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Value"
+        "PWR_FLAG"
+        (at 0 3.81 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Footprint"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        "Special symbol for telling ERC where power comes from"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "ki_keywords"
+        "flag power"
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "PWR_FLAG_0_0"
+        (pin
+          power_out
+          line
+          (at 0 0 90)
+          (length 0)
+          (name "" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (symbol
+        "PWR_FLAG_0_1"
+        (polyline
+          (pts (xy 0 0) (xy 0 1.27) (xy -1.016 1.905) (xy 0 2.54) (xy 1.016 1.905) (xy 0 1.27))
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+      )
+      (embedded_fonts no)
+    )
+    (symbol
+      "Seeed_XIAO:XIAO-ESP32-C6-SMD"
+      (pin_names (offset 1.016))
+      (exclude_from_sim no)
+      (in_bom yes)
+      (on_board yes)
+      (in_pos_files yes)
+      (duplicate_pin_numbers_are_jumpers no)
+      (property
+        "Reference"
+        "U"
+        (at -12.192 20.066 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Value"
+        "XIAO-ESP32-C6-SMD"
+        (at -2.286 18.034 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Footprint"
+        "Seeed_Studio_XIAO_Series:XIAO-ESP32-C6-SMD"
+        (at -2.54 5.08 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Datasheet"
+        ""
+        (at -8.89 5.08 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property
+        "Description"
+        ""
+        (at 0 0 0)
+        (show_name no)
+        (do_not_autoplace no)
+        (hide yes)
+        (effects (font (size 1.27 1.27)))
+      )
+      (symbol
+        "XIAO-ESP32-C6-SMD_0_1"
+        (rectangle
+          (start -12.7 16.51)
+          (end 27.94 -19.05)
+          (stroke (width 0) (type default))
+          (fill (type none))
+        )
+      )
+      (symbol
+        "XIAO-ESP32-C6-SMD_1_1"
+        (pin
+          passive
+          line
+          (at -15.24 7.62 0)
+          (length 2.54)
+          (name "D0" (effects (font (size 1.27 1.27))))
+          (number "1" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -15.24 3.81 0)
+          (length 2.54)
+          (name "D1" (effects (font (size 1.27 1.27))))
+          (number "2" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -15.24 0 0)
+          (length 2.54)
+          (name "D2" (effects (font (size 1.27 1.27))))
+          (number "3" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -15.24 -3.81 0)
+          (length 2.54)
+          (name "D3" (effects (font (size 1.27 1.27))))
+          (number "4" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -15.24 -7.62 0)
+          (length 2.54)
+          (name "D4" (effects (font (size 1.27 1.27))))
+          (number "5" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -15.24 -11.43 0)
+          (length 2.54)
+          (name "D5" (effects (font (size 1.27 1.27))))
+          (number "6" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at -15.24 -15.24 0)
+          (length 2.54)
+          (name "D6" (effects (font (size 1.27 1.27))))
+          (number "7" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 30.48 -15.24 180)
+          (length 2.54)
+          (name "D7" (effects (font (size 1.27 1.27))))
+          (number "8" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 30.48 -11.43 180)
+          (length 2.54)
+          (name "D8" (effects (font (size 1.27 1.27))))
+          (number "9" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 30.48 -7.62 180)
+          (length 2.54)
+          (name "D9" (effects (font (size 1.27 1.27))))
+          (number "10" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 30.48 -3.81 180)
+          (length 2.54)
+          (name "D10" (effects (font (size 1.27 1.27))))
+          (number "11" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 30.48 0 180)
+          (length 2.54)
+          (name "3V3_OUT" (effects (font (size 1.27 1.27))))
+          (number "12" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 30.48 3.81 180)
+          (length 2.54)
+          (name "GND" (effects (font (size 1.27 1.27))))
+          (number "13" (effects (font (size 1.27 1.27))))
+        )
+        (pin
+          passive
+          line
+          (at 30.48 7.62 180)
+          (length 2.54)
+          (name "VBUS" (effects (font (size 1.27 1.27))))
+          (number "14" (effects (font (size 1.27 1.27))))
+        )
+      )
+      (embedded_fonts no)
+    )
+  )
+  (symbol
+    (lib_id "Connector_Generic:Conn_01x02")
+    (at 30.48 39.37 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "03e42ee1-dab4-4a21-a13e-167c616feef0")
+    (property "Reference" "J1" (at 30.48 34.37 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "12V IN" (at 30.48 44.37 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Connector_Phoenix_MSTB:PhoenixContact_MSTBA_2,5_2-G-5,08_1x02_P5.08mm_Horizontal"
+      (at 30.48 39.37 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "7590bc32-41fd-4a69-8d0a-e0062ba22a3d"))
+    (pin "2" (uuid "5369650b-4287-4f75-9166-cee75885780e"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "J1") (unit 1))))
+  )
+  (global_label
+    "12V_RAW"
+    (shape passive)
+    (at 25.4 39.37 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "1c82b486-cc9b-4097-b841-b37321677deb")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 25.4 41.91 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "d6230d08-893e-48da-9330-b0713065851c")
+  )
+  (symbol
+    (lib_id "Device:C_Polarized")
+    (at 54.61 39.37 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "0cb93ff9-809a-44f7-b33b-3adfcc26dc32")
+    (property "Reference" "C4" (at 54.61 34.37 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "100u" (at 54.61 44.37 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Capacitor_THT:CP_Radial_D6.3mm_P2.50mm"
+      (at 54.61 39.37 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "e23b5f46-4245-4186-8b28-128053dd98b0"))
+    (pin "2" (uuid "fcceae1a-ef65-4297-bb53-dfba576fcaca"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "C4") (unit 1))))
+  )
+  (global_label
+    "12V_RAW"
+    (shape passive)
+    (at 54.61 35.56 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "f229a560-3106-4afc-a0b5-aae8d6e6b2e2")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 54.61 43.18 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "11983fc7-8a3a-421e-ab0f-4906c50342f9")
+  )
+  (symbol
+    (lib_id "Device:D")
+    (at 80.01 39.37 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "b2dfa318-8e46-4c82-a0b6-5b360fba7144")
+    (property "Reference" "D1" (at 80.01 34.37 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "1N4007" (at 80.01 44.37 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Diode_THT:D_DO-41_SOD81_P10.16mm_Horizontal"
+      (at 80.01 39.37 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "16ea3ec9-1448-48e1-b4a9-ae64e62eac7e"))
+    (pin "2" (uuid "ecb00d82-710a-4511-8513-b87c70d84201"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "D1") (unit 1))))
+  )
+  (global_label
+    "12V_PROT"
+    (shape passive)
+    (at 76.2 39.37 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "c0ab954c-ed45-4d34-a010-03b5dbb24482")
+  )
+  (global_label
+    "12V_RAW"
+    (shape passive)
+    (at 83.82 39.37 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "f63ead9d-0499-4bbe-b2bc-8e3e67c36bf4")
+  )
+  (symbol
+    (lib_id "Connector_Generic:Conn_01x08")
+    (at 110.49 49.53 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "adb5e7fc-989e-4510-8a18-c16d2574755c")
+    (property "Reference" "J2" (at 110.49 44.53 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "BUCK IN ROW" (at 110.49 54.53 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Connector_PinSocket_2.54mm:PinSocket_1x08_P2.54mm_Vertical"
+      (at 110.49 49.53 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "ede8f714-9b0f-470e-ab05-9c5221c09f23"))
+    (pin "2" (uuid "9e1cd1b3-9c43-45c5-9b0d-52d09cba6468"))
+    (pin "3" (uuid "dd44b85b-1f58-4eb0-ba04-a4d71a1d10b2"))
+    (pin "4" (uuid "d47a7c8e-8df8-4591-8fc7-3f91c99e1c91"))
+    (pin "5" (uuid "e6093870-bdcb-4452-bd0d-b91e7bec27d3"))
+    (pin "6" (uuid "4add35c8-e889-4ccf-9e29-672b8c6b9f6c"))
+    (pin "7" (uuid "55ff6587-8cdd-4663-a9fd-5fadf12b5ad5"))
+    (pin "8" (uuid "6e2bd39f-3335-43e6-bcda-8761b42aed15"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "J2") (unit 1))))
+  )
+  (global_label
+    "12V_PROT"
+    (shape passive)
+    (at 105.41 41.91 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "7e0b384e-2feb-4ad7-952e-39bcbd7647d3")
+  )
+  (no_connect (at 105.41 44.45) (uuid "c8eedb44-e818-424d-bf11-a1f5daafc291"))
+  (no_connect (at 105.41 46.99) (uuid "6303f172-2203-489b-9cf1-97a3e60f9033"))
+  (no_connect (at 105.41 49.53) (uuid "e27ce909-e1ad-4173-b707-f71fdbe129db"))
+  (no_connect (at 105.41 52.07) (uuid "628c8cc0-e338-4e2c-9a8f-fe4f4860dc52"))
+  (no_connect (at 105.41 54.61) (uuid "9fee0753-4762-4a61-9573-c7ccef5f3684"))
+  (no_connect (at 105.41 57.15) (uuid "5d7e400d-9227-4337-a7f7-2354d231dff9"))
+  (global_label
+    "GND"
+    (shape passive)
+    (at 105.41 59.69 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "f24c2784-ebee-4578-8f30-751286889c5c")
+  )
+  (symbol
+    (lib_id "Connector_Generic:Conn_01x08")
+    (at 139.7 49.53 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "260aae2a-561a-4dbc-b8a7-cae6a6dfda5b")
+    (property "Reference" "J10" (at 139.7 44.53 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "BUCK OUT ROW" (at 139.7 54.53 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Connector_PinSocket_2.54mm:PinSocket_1x08_P2.54mm_Vertical"
+      (at 139.7 49.53 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "75c1a5cb-1e74-41d1-8dbd-1e84987c4768"))
+    (pin "2" (uuid "d0c87b5c-0084-4ce7-ac7a-d3052dcbf66e"))
+    (pin "3" (uuid "730b3422-5bff-48bc-b705-534c163a2508"))
+    (pin "4" (uuid "7321b6ec-a19c-42a2-a202-4826ebfe6250"))
+    (pin "5" (uuid "52031abf-47f1-4e8b-abc3-7e9edd23c48c"))
+    (pin "6" (uuid "8bc67a9b-7610-4304-ab82-9a7e7cf9d3cd"))
+    (pin "7" (uuid "9e1c03ce-ad02-4527-8f10-0bbab3202b74"))
+    (pin "8" (uuid "39cd0fef-3c94-42c3-a250-0ba5c8187b83"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "J10") (unit 1))))
+  )
+  (global_label
+    "5V"
+    (shape passive)
+    (at 134.62 41.91 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "8dedd098-d4f4-4557-b67f-33b764da1827")
+  )
+  (no_connect (at 134.62 44.45) (uuid "bf25ec20-1a53-456a-9aab-5e432faeacad"))
+  (no_connect (at 134.62 46.99) (uuid "fd15b4d5-505f-46b8-9d5c-809a568c8657"))
+  (no_connect (at 134.62 49.53) (uuid "a615f81f-f0a7-460c-92f8-f0359d71f9ca"))
+  (no_connect (at 134.62 52.07) (uuid "d4b44f06-8586-4f27-88bd-0cfd52a945ba"))
+  (no_connect (at 134.62 54.61) (uuid "5da449e1-e78e-4518-a4fe-3351fb198051"))
+  (no_connect (at 134.62 57.15) (uuid "615cae6c-5cc4-4e57-930d-0a85535683e1"))
+  (global_label
+    "GND"
+    (shape passive)
+    (at 134.62 59.69 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "7f911505-fc79-47ec-9c0a-9e1989b64891")
+  )
+  (symbol
+    (lib_id "Device:D")
+    (at 170.18 39.37 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "2f2758bd-7904-49ba-97e3-7595c80315cd")
+    (property "Reference" "D2" (at 170.18 34.37 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "1N5819" (at 170.18 44.37 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Diode_THT:D_DO-41_SOD81_P10.16mm_Horizontal"
+      (at 170.18 39.37 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "e3e752ee-6e13-4c13-87ef-cf28c1125880"))
+    (pin "2" (uuid "53620735-c54f-4f9a-946e-19857bb23bab"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "D2") (unit 1))))
+  )
+  (global_label
+    "5V_MCU"
+    (shape passive)
+    (at 166.37 39.37 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "88983c6d-a189-4fd7-8b40-33bfc552991a")
+  )
+  (global_label
+    "5V"
+    (shape passive)
+    (at 173.99 39.37 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "b7a7d4d0-a54f-4250-a2e3-92bc4c4590f4")
+  )
+  (symbol
+    (lib_id "Regulator_Linear:LD1117V33")
+    (at 209.55 39.37 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "edc570bf-dbba-49ff-9044-167edba0b877")
+    (property "Reference" "U2" (at 209.55 34.37 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "LD1117V33" (at 209.55 44.37 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Package_TO_SOT_THT:TO-220-3_Vertical"
+      (at 209.55 39.37 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "3de0084c-d77a-4bd7-902c-45bb3075428a"))
+    (pin "2" (uuid "b1b1e58f-6c87-4fcf-9fe8-48d6b3d50ce1"))
+    (pin "3" (uuid "f5d92f1e-ddf5-4e8d-96c7-7846958327cc"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "U2") (unit 1))))
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 209.55 46.99 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "ed653edd-aef2-42e9-9e4f-69b25f57b1d1")
+  )
+  (global_label
+    "3V3_PU"
+    (shape passive)
+    (at 217.17 39.37 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "bc0cf376-8cee-460d-8338-6e85883bbabf")
+  )
+  (global_label
+    "5V"
+    (shape passive)
+    (at 201.93 39.37 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "f13b9cec-2315-4d1a-991a-19373e98a747")
+  )
+  (symbol
+    (lib_id "Device:C_Polarized")
+    (at 240.03 39.37 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "a6416554-7de3-46ed-ad3e-36f5aec98c18")
+    (property "Reference" "C1" (at 240.03 34.37 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "10u" (at 240.03 44.37 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Capacitor_THT:CP_Radial_D5.0mm_P2.50mm"
+      (at 240.03 39.37 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "cf173a9b-fd0e-4f73-9872-ad67da4efde5"))
+    (pin "2" (uuid "0d12e29e-de6b-46c3-bf1a-27ab00ea5fa8"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "C1") (unit 1))))
+  )
+  (global_label
+    "5V"
+    (shape passive)
+    (at 240.03 35.56 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "ef09cb47-33f1-452c-aee9-4cd9261cccbd")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 240.03 43.18 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "390c0af1-e2c9-4efb-b6f1-27796f8b7ea7")
+  )
+  (symbol
+    (lib_id "Device:C_Polarized")
+    (at 260.35 39.37 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "65fdafca-3cea-4a91-9b6d-793d6dba4db0")
+    (property "Reference" "C2" (at 260.35 34.37 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "10u" (at 260.35 44.37 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Capacitor_THT:CP_Radial_D5.0mm_P2.50mm"
+      (at 260.35 39.37 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "e3d02a1d-1722-42da-9e67-59541c30a748"))
+    (pin "2" (uuid "a232a923-276a-4adc-bcf3-4c860f29ee33"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "C2") (unit 1))))
+  )
+  (global_label
+    "3V3_PU"
+    (shape passive)
+    (at 260.35 35.56 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "a27bb6e4-ed40-420c-980c-2d836f144434")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 260.35 43.18 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "28e8be4d-11b0-4e39-90bd-17a57fff4e96")
+  )
+  (symbol
+    (lib_id "Device:C")
+    (at 279.4 39.37 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "6162d1d6-ab6e-44b1-a1f8-aac461db7854")
+    (property "Reference" "C3" (at 279.4 34.37 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "100n" (at 279.4 44.37 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P2.50mm"
+      (at 279.4 39.37 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "b3dceff7-8472-4e8f-954c-7a980ae9af37"))
+    (pin "2" (uuid "0d0f84a4-7455-4a85-a45c-78205db8e601"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "C3") (unit 1))))
+  )
+  (global_label
+    "3V3_PU"
+    (shape passive)
+    (at 279.4 35.56 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "7c342edc-e433-4b71-981a-7b8339fb4a57")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 279.4 43.18 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "f201878e-b03f-4b78-b902-60127078bc5e")
+  )
+  (symbol
+    (lib_id "Seeed_XIAO:XIAO-ESP32-C6-SMD")
+    (at 59.69 119.38 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "0bb1a4c8-e432-41c9-b18b-7db23fc03f36")
+    (property "Reference" "U1" (at 59.69 114.38 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "XIAO-ESP32-C6" (at 59.69 124.38 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Seeed_XIAO:XIAO-ESP32-C6-DIP"
+      (at 59.69 119.38 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "34b1758f-fde2-45cc-ae19-f915936fc849"))
+    (pin "2" (uuid "a6927a8a-3768-40f0-a565-324eac4f2686"))
+    (pin "3" (uuid "9e283a4e-647e-44f2-bf79-fce0f91d468c"))
+    (pin "4" (uuid "6e8161a4-aa86-4d16-8b5d-8a1506073de0"))
+    (pin "5" (uuid "6297c6bc-81df-4ee2-b6cc-4a829592bca5"))
+    (pin "6" (uuid "900ff2ba-4afe-412a-bf3e-10c55b3edf9b"))
+    (pin "7" (uuid "2563e34a-4fac-4ce7-a968-2f8febcf4814"))
+    (pin "8" (uuid "33c86557-97ee-4e9a-a2fa-7fc44b2e2592"))
+    (pin "9" (uuid "aec861df-4c83-4f53-b84c-6554c4f1fd94"))
+    (pin "10" (uuid "98382957-53f0-4a96-ac7c-8095b4c73697"))
+    (pin "11" (uuid "37d3c5d7-72a1-47b3-b188-25707f0713a7"))
+    (pin "12" (uuid "608bf6aa-ea9c-45aa-8e83-97d91b93c0ff"))
+    (pin "13" (uuid "5163501f-8a15-4a9f-afc3-bc40dd7319ca"))
+    (pin "14" (uuid "f338e99b-3486-4dea-85f8-c01c0de1c6ab"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "U1") (unit 1))))
+  )
+  (global_label
+    "AMBER_LED"
+    (shape passive)
+    (at 44.45 111.76 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "0cba8e4d-70d3-49dd-9e49-126574ff845f")
+  )
+  (global_label
+    "RELAY_CTL"
+    (shape passive)
+    (at 44.45 115.57 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "8fe53c85-f636-4a77-9aed-dcae95b02d1c")
+  )
+  (global_label
+    "BUZZER"
+    (shape passive)
+    (at 44.45 119.38 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "67f43db8-e6be-465c-bbb8-010beb864c4f")
+  )
+  (global_label
+    "RED_LED"
+    (shape passive)
+    (at 44.45 123.19 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "dab77457-1382-40f7-acbf-afe01fe9cb26")
+  )
+  (global_label
+    "SDA"
+    (shape passive)
+    (at 44.45 127.0 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "cf75278b-f116-4f7c-8819-bb91af74e22e")
+  )
+  (global_label
+    "SCL"
+    (shape passive)
+    (at 44.45 130.81 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "37a247ad-5c1d-40ab-8b9f-87dd8d321e6b")
+  )
+  (global_label
+    "EXIT_BTN"
+    (shape passive)
+    (at 44.45 134.62 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "0ebd4f75-9c70-4190-a09a-ee359c4e51ec")
+  )
+  (global_label
+    "PANEL_G"
+    (shape passive)
+    (at 90.17 134.62 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "2650361c-f445-4f9c-9968-1b3b42108662")
+  )
+  (global_label
+    "DATA"
+    (shape passive)
+    (at 90.17 130.81 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "29a30b07-459d-4b44-9765-4ba96c9ab719")
+  )
+  (global_label
+    "CLOCK"
+    (shape passive)
+    (at 90.17 127.0 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "500bd8e5-9d6f-4929-88bf-9e6902cf43e8")
+  )
+  (global_label
+    "GREEN_LED"
+    (shape passive)
+    (at 90.17 123.19 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "d7752c9d-6ff6-449c-8f8c-79bde219038a")
+  )
+  (global_label
+    "3V3_MCU"
+    (shape passive)
+    (at 90.17 119.38 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "9cb482e2-554d-4708-a933-385c435de41c")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 90.17 115.57 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "90498129-26b5-4cdd-8b85-2a0f5bb9df89")
+  )
+  (global_label
+    "5V_MCU"
+    (shape passive)
+    (at 90.17 111.76 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "919281e5-f386-431e-a33a-aa10f6055c9a")
+  )
+  (symbol
+    (lib_id "Connector_Generic:Conn_01x15")
+    (at 139.7 129.54 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "50eedf03-2880-4daa-ac97-bc0316612180")
+    (property "Reference" "J8" (at 139.7 124.53999999999999 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "DEVKIT L" (at 139.7 134.54 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Connector_PinSocket_2.54mm:PinSocket_1x15_P2.54mm_Vertical"
+      (at 139.7 129.54 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "dd4b2656-c5c7-4c11-8280-08a8bd92e10e"))
+    (pin "2" (uuid "e27fce6e-28de-40dd-b3ed-28ea4605e220"))
+    (pin "3" (uuid "47c011ed-ceea-4898-95e8-e11d2584ccea"))
+    (pin "4" (uuid "07fbd2d6-8fab-4665-a7ff-1df7c8d1cd8b"))
+    (pin "5" (uuid "7c985987-f9b2-4598-bbdc-ded2381cc384"))
+    (pin "6" (uuid "d84f36a2-f9cb-46e3-8088-32a434b52da2"))
+    (pin "7" (uuid "4264fe70-4317-4a33-be1f-14b7b8a11a61"))
+    (pin "8" (uuid "9c2ae7f1-dfe7-48f6-81c5-e9a16f9c9600"))
+    (pin "9" (uuid "f032b8c4-c91f-4327-8eb0-c22ea21aab1f"))
+    (pin "10" (uuid "4f8c7b2d-ff5f-442f-85a8-14cfaac5a52d"))
+    (pin "11" (uuid "ec2a74a8-6cae-42b9-bc42-2569ee25efef"))
+    (pin "12" (uuid "b70aec68-62d3-4397-9032-1c5446157b45"))
+    (pin "13" (uuid "a57ad2c0-1e7f-438b-92cd-7923a1864f77"))
+    (pin "14" (uuid "a7b768fe-6973-4cf7-8bd8-99bc8561dd2a"))
+    (pin "15" (uuid "dfa307e8-b84f-4a5b-b988-09616f232d44"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "J8") (unit 1))))
+  )
+  (global_label
+    "3V3_MCU"
+    (shape passive)
+    (at 134.62 111.76 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "712a3c2c-3522-4e98-b39e-205e1191138a")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 134.62 114.3 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "1d26c66f-f3fa-422d-a8d0-90feb30ee595")
+  )
+  (no_connect (at 134.62 116.84) (uuid "954700e8-6c69-4eb2-8f24-afb6cd9db32b"))
+  (no_connect (at 134.62 119.38) (uuid "d33cae9c-2d67-4851-8663-a0dc3ce850cc"))
+  (global_label
+    "AMBER_LED"
+    (shape passive)
+    (at 134.62 121.92 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "627ad7dd-594f-4681-bc78-e1dc5dbd6923")
+  )
+  (no_connect (at 134.62 124.46) (uuid "92889ab1-ed0c-472c-98c8-433e886df19b"))
+  (global_label
+    "RED_LED"
+    (shape passive)
+    (at 134.62 127.0 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "08bcc782-6001-43ef-a540-88fb70c68505")
+  )
+  (no_connect (at 134.62 129.54) (uuid "04995f31-c0b3-43db-a9e8-4ac20dc1657a"))
+  (global_label
+    "CLOCK"
+    (shape passive)
+    (at 134.62 132.08 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "877444cc-0316-48e2-b850-ebe2b3deaf68")
+  )
+  (global_label
+    "DATA"
+    (shape passive)
+    (at 134.62 134.62 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "b9cd163f-008f-4b80-940b-cd90105d7a5d")
+  )
+  (global_label
+    "SDA"
+    (shape passive)
+    (at 134.62 137.16 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "e29d6b30-e45f-4a98-8424-4e92671233da")
+  )
+  (no_connect (at 134.62 139.7) (uuid "043d593e-68c4-4a89-8851-01b2e721e31a"))
+  (no_connect (at 134.62 142.24) (uuid "cd027fea-b350-42b4-8bd4-52306011b166"))
+  (global_label
+    "SCL"
+    (shape passive)
+    (at 134.62 144.78 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "fc5233c2-1947-4bdf-b8b9-e9af8e6a7699")
+  )
+  (global_label
+    "GREEN_LED"
+    (shape passive)
+    (at 134.62 147.32 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "b31c7137-2815-4bb7-9327-7a6b271ba2c1")
+  )
+  (symbol
+    (lib_id "Connector_Generic:Conn_01x15")
+    (at 180.34 129.54 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "ab4776ff-8b08-4f42-9ff4-85f480812c4e")
+    (property "Reference" "J9" (at 180.34 124.53999999999999 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "DEVKIT R" (at 180.34 134.54 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Connector_PinSocket_2.54mm:PinSocket_1x15_P2.54mm_Vertical"
+      (at 180.34 129.54 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "fef7952a-10f4-4860-bc91-9847b733e1bd"))
+    (pin "2" (uuid "a9291ac5-8dc3-4c04-bd91-52163a06c18b"))
+    (pin "3" (uuid "977172e7-5d3d-429f-ac79-fa4aec75db9b"))
+    (pin "4" (uuid "b3f1282f-d9ce-44b4-b320-cc39183d2e42"))
+    (pin "5" (uuid "774f2127-afc8-4755-8060-e2e3420c9c3d"))
+    (pin "6" (uuid "462bd9c5-998f-45a4-b443-056806b75b52"))
+    (pin "7" (uuid "539ae494-e626-412e-84b5-1795e3fc094e"))
+    (pin "8" (uuid "ea468862-1d24-48a8-8cbe-8adda6217c0c"))
+    (pin "9" (uuid "94b815f9-648b-4361-a27a-d44e066cfd70"))
+    (pin "10" (uuid "82bb0c89-06f4-4ad1-a346-a0da646c7dc4"))
+    (pin "11" (uuid "e2c3db41-def0-4bdb-8501-0ce7120e4e7c"))
+    (pin "12" (uuid "756e091a-0a72-4d03-8fa4-e44eb284e5c9"))
+    (pin "13" (uuid "328b5258-b9a3-4d8d-8c9c-6f84ea9ce95f"))
+    (pin "14" (uuid "6d017d97-4147-43df-aebc-4b264009a757"))
+    (pin "15" (uuid "a01e0293-da2b-448b-91da-64c02b800778"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "J9") (unit 1))))
+  )
+  (global_label
+    "5V_MCU"
+    (shape passive)
+    (at 175.26 111.76 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "e04e5794-1caa-41ac-9bb6-fdcfdfaad16e")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 175.26 114.3 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "e567c35c-acb5-45be-bee4-da6296ffa762")
+  )
+  (global_label
+    "BUZZER"
+    (shape passive)
+    (at 175.26 116.84 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "e973d357-3322-45fb-be16-831556118a40")
+  )
+  (no_connect (at 175.26 119.38) (uuid "7bc068d3-66c9-40b1-8e7b-03e6f7f4f6c1"))
+  (global_label
+    "RELAY_CTL"
+    (shape passive)
+    (at 175.26 121.92 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "2d095fc6-5eeb-4154-8b2d-fe954e7b0de3")
+  )
+  (global_label
+    "PANEL_B"
+    (shape passive)
+    (at 175.26 124.46 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "88d8ffb3-93e5-4d0f-87a5-f52bd3994a52")
+  )
+  (global_label
+    "PANEL_G"
+    (shape passive)
+    (at 175.26 127.0 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "20596dad-2cac-4f38-9ca0-2153c7054b88")
+  )
+  (global_label
+    "PANEL_R"
+    (shape passive)
+    (at 175.26 129.54 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "8bf3e505-30c0-476f-8826-f6291a695749")
+  )
+  (no_connect (at 175.26 132.08) (uuid "6271d912-fcce-457d-ad1a-5092d2d9088c"))
+  (global_label
+    "EXIT_BTN"
+    (shape passive)
+    (at 175.26 134.62 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "b240785f-51fe-4e98-85fc-db2df2f555ed")
+  )
+  (no_connect (at 175.26 137.16) (uuid "0af1bc8b-0064-4b13-ae23-42d581ad5ae7"))
+  (no_connect (at 175.26 139.7) (uuid "eca71ca7-bfea-4571-97f9-0ca072976815"))
+  (no_connect (at 175.26 142.24) (uuid "73321ce3-bde4-406d-8126-45991eeb9bdb"))
+  (no_connect (at 175.26 144.78) (uuid "2e199bc4-e18b-4df6-8c7c-871e2d627627"))
+  (no_connect (at 175.26 147.32) (uuid "02aaa438-9fa3-4615-88b5-65d604b8d225"))
+  (symbol
+    (lib_id "Connector_Generic:Conn_01x08")
+    (at 250.19 119.38 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "07c92b1d-0d69-48a3-8aa7-fee19ac9d4e2")
+    (property "Reference" "J3" (at 250.19 114.38 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "READER" (at 250.19 124.38 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Connector_Phoenix_MSTB:PhoenixContact_MSTBA_2,5_8-G-5,08_1x08_P5.08mm_Horizontal"
+      (at 250.19 119.38 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "418e88aa-4098-4acf-99b5-91753fcd02dd"))
+    (pin "2" (uuid "cbe6305b-1399-4776-b7b0-b526585e89ed"))
+    (pin "3" (uuid "ed0a3067-50b6-4553-be1a-b07c24a3c303"))
+    (pin "4" (uuid "6c5faa50-4a72-485d-9035-f60f9efc45ee"))
+    (pin "5" (uuid "3fe3237a-8a92-4969-9dff-d5d3e75b0c85"))
+    (pin "6" (uuid "db1e6d7a-a2e9-47e4-86a1-8ee9caf7ccca"))
+    (pin "7" (uuid "5a70a3c9-04dd-43e6-ad75-7951df43adbb"))
+    (pin "8" (uuid "5bd0a340-043e-47b7-aed0-c51bf74c6370"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "J3") (unit 1))))
+  )
+  (global_label
+    "12V_RAW"
+    (shape passive)
+    (at 245.11 111.76 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "dabdcd51-92a6-4545-8024-24f7dc7e524d")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 245.11 114.3 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "2037c2bd-9b26-4451-8bb2-d85ac4fcae55")
+  )
+  (global_label
+    "DATA"
+    (shape passive)
+    (at 245.11 116.84 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "75efbb6b-684c-4304-bb34-f50da13ca8eb")
+  )
+  (global_label
+    "CLOCK"
+    (shape passive)
+    (at 245.11 119.38 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "10f5edc7-afd5-473a-88d4-f07bfb9c1cc4")
+  )
+  (global_label
+    "RED_LED"
+    (shape passive)
+    (at 245.11 121.92 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "e1f9ad7d-eccd-4936-981f-3366ad687311")
+  )
+  (global_label
+    "GREEN_LED"
+    (shape passive)
+    (at 245.11 124.46 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "5e68f134-98da-4e47-9904-e9f2d5f94387")
+  )
+  (global_label
+    "AMBER_LED"
+    (shape passive)
+    (at 245.11 127.0 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "fcaee783-7b6c-457b-b845-46a2a510966e")
+  )
+  (no_connect (at 245.11 129.54) (uuid "d54c9821-4585-4b26-b8ea-db7304c80d8d"))
+  (symbol
+    (lib_id "Device:R")
+    (at 289.56 110.49 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "de3a4147-97f7-4643-9b42-77735afcd52e")
+    (property "Reference" "R1" (at 289.56 105.49 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "10k" (at 289.56 115.49 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal"
+      (at 289.56 110.49 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "12a0d3bd-ce7d-4969-a4bf-faa98b324764"))
+    (pin "2" (uuid "47a873fb-d1b7-4252-b839-7eb5edd271a7"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "R1") (unit 1))))
+  )
+  (global_label
+    "3V3_PU"
+    (shape passive)
+    (at 289.56 106.68 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "ce75e2b6-20a1-463c-8c7e-bfc13acbf1b2")
+  )
+  (global_label
+    "DATA"
+    (shape passive)
+    (at 289.56 114.3 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "5efa7e1d-a0f3-428e-a2c5-731574ad3876")
+  )
+  (symbol
+    (lib_id "Device:R")
+    (at 309.88 110.49 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "60665e00-775a-4c95-b428-7eb6dbed9c35")
+    (property "Reference" "R2" (at 309.88 105.49 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "10k" (at 309.88 115.49 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal"
+      (at 309.88 110.49 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "4b960be6-1c84-46a3-89a6-08bf8553fe64"))
+    (pin "2" (uuid "dbd57365-80d9-44b7-8c81-e962188f59a3"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "R2") (unit 1))))
+  )
+  (global_label
+    "3V3_PU"
+    (shape passive)
+    (at 309.88 106.68 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "21693f9c-228b-406b-9588-443cfd608513")
+  )
+  (global_label
+    "CLOCK"
+    (shape passive)
+    (at 309.88 114.3 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "de52ba96-91d1-4b38-ad08-d4450d11c01c")
+  )
+  (symbol
+    (lib_id "Connector_Generic:Conn_01x02")
+    (at 340.36 110.49 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "68ba0a85-c3f3-4a3e-b463-74e42b03b7ff")
+    (property "Reference" "J5" (at 340.36 105.49 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "EXIT BTN" (at 340.36 115.49 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Connector_Phoenix_MSTB:PhoenixContact_MSTBA_2,5_2-G-5,08_1x02_P5.08mm_Horizontal"
+      (at 340.36 110.49 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "13d8eb0b-f3ac-48ab-ac2b-41d96df52771"))
+    (pin "2" (uuid "458b095d-6049-40c8-aba1-2d3921a2d7c4"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "J5") (unit 1))))
+  )
+  (global_label
+    "EXIT_BTN"
+    (shape passive)
+    (at 335.28 110.49 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "1bc40faa-74a9-4106-a1ec-1001739977ca")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 335.28 113.03 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "91fad789-b356-42c9-baf8-8ee90a2001bc")
+  )
+  (symbol
+    (lib_id "Connector_Generic:Conn_01x04")
+    (at 369.57 110.49 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "6bab4723-2feb-4423-9a91-ba1d38047777")
+    (property "Reference" "J6" (at 369.57 105.49 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "OLED" (at 369.57 115.49 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical"
+      (at 369.57 110.49 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "e6675bc0-635f-479b-ba7c-656c278c9bca"))
+    (pin "2" (uuid "1e952ffc-b675-4fd5-92b6-d2d56022ec99"))
+    (pin "3" (uuid "79b26255-0d40-4b41-b332-1dd35c4fb4b0"))
+    (pin "4" (uuid "82eb57c7-277f-4013-a1e5-d97c1d6473c7"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "J6") (unit 1))))
+  )
+  (global_label
+    "3V3_MCU"
+    (shape passive)
+    (at 364.49 107.95 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "d4df2006-109c-412e-aebd-432e39849dd7")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 364.49 110.49 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "8e84755c-c950-4003-b2f0-7d00efd165b6")
+  )
+  (global_label
+    "SDA"
+    (shape passive)
+    (at 364.49 113.03 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "4c122e41-7470-418f-a5bb-1763fedb9307")
+  )
+  (global_label
+    "SCL"
+    (shape passive)
+    (at 364.49 115.57 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "4d644828-1a91-43b4-bee1-3a6c0ae5ec8c")
+  )
+  (symbol
+    (lib_id "Device:R")
+    (at 39.37 209.55 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "b8f4abf2-9d44-49c3-a533-1b6fd3a04b7c")
+    (property "Reference" "R3" (at 39.37 204.55 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "1k" (at 39.37 214.55 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal"
+      (at 39.37 209.55 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "1047c257-9fc8-4dee-ae66-25a79954e79d"))
+    (pin "2" (uuid "5b047a37-a84b-4878-a88e-65a0029c31af"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "R3") (unit 1))))
+  )
+  (global_label
+    "RELAY_CTL"
+    (shape passive)
+    (at 39.37 205.74 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "4abdc4a5-e480-4684-8a1a-1351e0645935")
+  )
+  (global_label
+    "Q1_B"
+    (shape passive)
+    (at 39.37 213.36 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "fa19b48e-ae2b-4205-8fc6-00210491cf0b")
+  )
+  (symbol
+    (lib_id "Device:R")
+    (at 59.69 214.63 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "a002f24d-4154-456d-aec9-04121de15c6e")
+    (property "Reference" "R4" (at 59.69 209.63 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "10k" (at 59.69 219.63 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal"
+      (at 59.69 214.63 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "ac082335-f4ec-455f-9177-9015c1626ccc"))
+    (pin "2" (uuid "0edfe524-0e8e-47a2-bffe-78c5741341dc"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "R4") (unit 1))))
+  )
+  (global_label
+    "RELAY_CTL"
+    (shape passive)
+    (at 59.69 210.82 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "79e0c13d-71e4-4820-9660-3759299c5761")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 59.69 218.44 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "1ab63138-2b7b-413d-88ea-9f262cf39d5e")
+  )
+  (symbol
+    (lib_id "Device:Q_NPN")
+    (at 90.17 209.55 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "1fd6ac84-cb6a-4828-83e6-26b3b1e0a331")
+    (property "Reference" "Q1" (at 90.17 204.55 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "2N3904" (at 90.17 214.55 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Package_TO_SOT_THT:TO-92_Inline_Wide"
+      (at 90.17 209.55 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "2" (uuid "d86d2e98-1c2e-445c-b84d-e78a5b4041af"))
+    (pin "3" (uuid "59d68153-5564-4e1b-8416-1ee00eb0ec58"))
+    (pin "1" (uuid "7e918079-65c9-44c8-a39d-39ff287cf607"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "Q1") (unit 1))))
+  )
+  (global_label
+    "Q1_B"
+    (shape passive)
+    (at 85.09 209.55 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "c188953b-8ce3-41f0-bf36-d9e71a121b44")
+  )
+  (global_label
+    "COIL_SW"
+    (shape passive)
+    (at 92.71 204.47 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "5df6dcbf-ab1f-4483-8159-9059143fa38b")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 92.71 214.63 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "be8368c7-cf84-42e4-8f35-03047f194245")
+  )
+  (symbol
+    (lib_id "Device:D")
+    (at 115.57 195.58 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "f8bfecc2-3d77-4336-a3a0-539eedebce3d")
+    (property "Reference" "D3" (at 115.57 190.58 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "1N4007" (at 115.57 200.58 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Diode_THT:D_DO-41_SOD81_P10.16mm_Horizontal"
+      (at 115.57 195.58 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "fb5967d3-ed91-475e-aa3e-dc41b71933f4"))
+    (pin "2" (uuid "2458eeca-f6ce-48cf-9efe-1f6dd0898fd1"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "D3") (unit 1))))
+  )
+  (global_label
+    "5V"
+    (shape passive)
+    (at 111.76 195.58 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "d6718f4d-a3bd-48fd-9bec-5f46657e7183")
+  )
+  (global_label
+    "COIL_SW"
+    (shape passive)
+    (at 119.38 195.58 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "9a22798c-8bd9-4368-9aeb-2af3eb8c8c8a")
+  )
+  (symbol
+    (lib_id "Relay:SANYOU_SRD_Form_C")
+    (at 149.86 209.55 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "8c28d5f3-8f48-4515-917d-4b4a936ed7d2")
+    (property "Reference" "K1" (at 149.86 204.55 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "SRD-05VDC-SL-C" (at 149.86 214.55 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Relay_THT:Relay_SPDT_SANYOU_SRD_Series_Form_C"
+      (at 149.86 209.55 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "56bb597f-fbe7-444f-8937-9fe3930002ba"))
+    (pin "2" (uuid "085bf6c0-886e-4207-b6f4-600ad3075b63"))
+    (pin "3" (uuid "164e50a6-3bb9-467c-844c-e83b9dbbf67f"))
+    (pin "4" (uuid "c83a4044-be19-4a3f-96dc-4635ee33c57f"))
+    (pin "5" (uuid "5bc78ddb-0b10-401f-a0c9-ec8999063c32"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "K1") (unit 1))))
+  )
+  (global_label
+    "12V_RAW"
+    (shape passive)
+    (at 154.94 217.17 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "9bc3b845-b216-4e90-8a64-6ecf48425e93")
+  )
+  (global_label
+    "5V"
+    (shape passive)
+    (at 144.78 217.17 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "723f190d-197d-4c76-bb1a-50a36336234c")
+  )
+  (global_label
+    "STRIKE_NO"
+    (shape passive)
+    (at 157.48 201.93 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "9ac24825-1da8-4eac-a86d-3be83f57a006")
+  )
+  (global_label
+    "STRIKE_NC"
+    (shape passive)
+    (at 152.4 201.93 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "af95fbf5-c67a-4a92-831d-1d12233c9c5a")
+  )
+  (global_label
+    "COIL_SW"
+    (shape passive)
+    (at 144.78 201.93 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "fdc018a0-a6bd-4334-ae42-45562568330a")
+  )
+  (symbol
+    (lib_id "Connector_Generic:Conn_01x03")
+    (at 195.58 209.55 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "188d6f58-b51c-498d-afbf-448224b2d98c")
+    (property "Reference" "J4" (at 195.58 204.55 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "STRIKE" (at 195.58 214.55 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Connector_Phoenix_MSTB:PhoenixContact_MSTBA_2,5_3-G-5,08_1x03_P5.08mm_Horizontal"
+      (at 195.58 209.55 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "5c2ba174-215b-41a3-8d4b-f77d14b11ead"))
+    (pin "2" (uuid "7f2f6ce9-d5ac-4db9-8166-b1f331985dfd"))
+    (pin "3" (uuid "0987c8c2-5fb9-49bd-b0d9-f0cb229dc207"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "J4") (unit 1))))
+  )
+  (global_label
+    "STRIKE_NO"
+    (shape passive)
+    (at 190.5 207.01 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "bf19b801-2302-43d9-994a-b8ea91cafac4")
+  )
+  (global_label
+    "STRIKE_NC"
+    (shape passive)
+    (at 190.5 209.55 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "f078f95b-5ed1-412c-a1da-a745e234742d")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 190.5 212.09 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "814de3cf-ece8-4a56-9a28-5d41c652a0c6")
+  )
+  (symbol
+    (lib_id "Device:Buzzer")
+    (at 234.95 209.55 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "85ff52c0-1446-4c12-b6bb-ecab2047b18c")
+    (property "Reference" "BZ1" (at 234.95 204.55 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "Active buzzer" (at 234.95 214.55 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Buzzer_Beeper:Buzzer_12x9.5RM7.6"
+      (at 234.95 209.55 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "ef9b9ad3-43c5-4226-9cbd-d932db9bc905"))
+    (pin "2" (uuid "51bc5b4e-829f-4c74-a991-77dda9026dcc"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "BZ1") (unit 1))))
+  )
+  (global_label
+    "BUZZER"
+    (shape passive)
+    (at 232.41 207.01 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "ca8621c1-8dba-45b3-ac38-1dbf24d40958")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 232.41 212.09 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "ce3cc233-b307-4d62-aa8e-d549a2a29884")
+  )
+  (symbol
+    (lib_id "Device:R")
+    (at 279.4 199.39 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "4caadef7-3917-4e4a-aac5-f380b068f228")
+    (property "Reference" "R5" (at 279.4 194.39 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "330" (at 279.4 204.39 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal"
+      (at 279.4 199.39 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "7ed7e7d0-c23b-49e3-9811-3f4b97fb9dae"))
+    (pin "2" (uuid "0681b10e-2fb1-459f-9fc3-bf1b2db37ae3"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "R5") (unit 1))))
+  )
+  (global_label
+    "PANEL_G"
+    (shape passive)
+    (at 279.4 195.58 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "38b3a307-0ff2-4ffb-979a-69940726256a")
+  )
+  (global_label
+    "PANEL_G_J"
+    (shape passive)
+    (at 279.4 203.2 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "63d3faaa-aa54-4b89-8229-33e3221c4986")
+  )
+  (symbol
+    (lib_id "Device:R")
+    (at 299.72 199.39 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "4e85a1e0-83dd-4ec6-b034-5adb1e93c907")
+    (property "Reference" "R6" (at 299.72 194.39 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "330" (at 299.72 204.39 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal"
+      (at 299.72 199.39 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "204441f4-5ce8-4ed0-b7d4-7432746ba569"))
+    (pin "2" (uuid "4a877785-c3cc-4aea-a979-e41e2f174893"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "R6") (unit 1))))
+  )
+  (global_label
+    "PANEL_R"
+    (shape passive)
+    (at 299.72 195.58 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "311b087a-6f5c-4195-896c-c10cbeb4a3cd")
+  )
+  (global_label
+    "PANEL_R_J"
+    (shape passive)
+    (at 299.72 203.2 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "e8eafb71-9116-49ed-ab38-47d14c4505e8")
+  )
+  (symbol
+    (lib_id "Device:R")
+    (at 320.04 199.39 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "9f68a700-73a8-4be4-a195-714b7d7b4462")
+    (property "Reference" "R7" (at 320.04 194.39 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "330" (at 320.04 204.39 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal"
+      (at 320.04 199.39 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "1383ca7e-f141-4a9c-91cb-e1ffe490e11f"))
+    (pin "2" (uuid "021dc3c9-6e6f-4717-9f85-bb184af0402f"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "R7") (unit 1))))
+  )
+  (global_label
+    "PANEL_B"
+    (shape passive)
+    (at 320.04 195.58 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "143bca49-7372-495c-9a83-15b51757216c")
+  )
+  (global_label
+    "PANEL_B_J"
+    (shape passive)
+    (at 320.04 203.2 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "95820d55-50d1-446c-894e-fc518ceb5401")
+  )
+  (symbol
+    (lib_id "Connector_Generic:Conn_01x04")
+    (at 350.52 199.39 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "c8253fda-cf9f-4f85-93cb-5da56bb688ca")
+    (property "Reference" "J7" (at 350.52 194.39 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "PANEL LED" (at 350.52 204.39 0) (effects (font (size 1.27 1.27))))
+    (property
+      "Footprint"
+      "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical"
+      (at 350.52 199.39 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (pin "1" (uuid "d97ef785-3097-483e-92dc-5e2a7dd82408"))
+    (pin "2" (uuid "c892d683-7505-48fc-8784-8a7e3d1dae45"))
+    (pin "3" (uuid "c9900516-b193-4619-82c0-843be38dbfec"))
+    (pin "4" (uuid "2cffd23e-95ea-4626-a3d1-ddcef6310c42"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "J7") (unit 1))))
+  )
+  (global_label
+    "PANEL_R_J"
+    (shape passive)
+    (at 345.44 196.85 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "542224dc-22f2-435b-b50c-2464c7fdda6d")
+  )
+  (global_label
+    "PANEL_G_J"
+    (shape passive)
+    (at 345.44 199.39 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "d237eef7-7613-4935-8a74-e75a21164d4c")
+  )
+  (global_label
+    "PANEL_B_J"
+    (shape passive)
+    (at 345.44 201.93 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "2608b7f1-57f0-4ea2-a23a-3e4477e154cc")
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 345.44 204.47 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "3c8016e3-e258-45cf-9b0e-c7ae1494f504")
+  )
+  (symbol
+    (lib_id "power:PWR_FLAG")
+    (at 30.48 260.35 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "2cc99d25-e477-4d31-b99f-437a6b34ebed")
+    (property "Reference" "#FLG1" (at 30.48 255.35000000000002 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "PWR_FLAG" (at 30.48 265.35 0) (effects (font (size 1.27 1.27))))
+    (property "Footprint" "" (at 30.48 260.35 0) (effects (font (size 1.27 1.27)) hide))
+    (pin "1" (uuid "b97bbb0c-49bf-48af-be72-2df015623dc4"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "#FLG1") (unit 1))))
+  )
+  (global_label
+    "GND"
+    (shape passive)
+    (at 30.48 260.35 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "59b91235-be16-4472-96c3-e338b3f65285")
+  )
+  (symbol
+    (lib_id "power:PWR_FLAG")
+    (at 49.53 260.35 0)
+    (unit 1)
+    (exclude_from_sim no)
+    (in_bom yes)
+    (on_board yes)
+    (dnp no)
+    (uuid "65b89027-dcfe-4414-8fde-a56e2d424baf")
+    (property "Reference" "#FLG2" (at 49.53 255.35000000000002 0) (effects (font (size 1.27 1.27))))
+    (property "Value" "PWR_FLAG" (at 49.53 265.35 0) (effects (font (size 1.27 1.27))))
+    (property "Footprint" "" (at 49.53 260.35 0) (effects (font (size 1.27 1.27)) hide))
+    (pin "1" (uuid "e1462944-8fae-482f-8ddb-adc541f9c124"))
+    (instances (project "RFID_Door_Controller" (path "/" (reference "#FLG2") (unit 1))))
+  )
+  (global_label
+    "5V"
+    (shape passive)
+    (at 49.53 260.35 0)
+    (effects (font (size 1.27 1.27)) (justify left))
+    (uuid "bc33db7a-9794-4815-94d6-1999a448b26e")
+  )
+  (sheet_instances (path "/" (page "1")))
+  (embedded_fonts no)
+)
