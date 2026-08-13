@@ -69,7 +69,12 @@ state down. On a constrained device the handshake is the expensive part.
 
 ---
 
-## Phase 1 — Device: runtime identity
+## Phase 1 — Device: runtime identity ✅ COMPLETE
+
+> **Verified on hardware 2026-08-13** — two classic ESP32 DevKit units, one
+> flashed over USB and one over OTA (a unit already mounted above a ceiling).
+> Distinct MAC-derived identities, independent `.local` names, `/setup` labels,
+> and the reboot button all confirmed in place.
 
 One binary for every door. Identity comes from hardware + NVS, never from a build
 flag.
@@ -259,7 +264,16 @@ values arrive in the sync response instead of being set per door.
   failure mode — a revoked fob that still works and nobody knows.
 
 **Central OTA**: compare the sync response's `fw.version` to `FW_VERSION`, pull
-from Blob Storage, verify sha256 before commit. **Never update while the relay is
+from Blob Storage, verify sha256 before commit.
+
+*Partly de-risked already:* on 2026-08-13 a ceiling-mounted DevKit was upgraded
+to the Phase 1 build entirely over ElegantOTA and came back healthy, so the
+manual OTA path — image size against the `min_spiffs` slot (1.20 MB of 1.875 MB,
+64%), reboot, reconnect — is proven on real hardware. What Phase 4 adds on top is
+only the *automation*: version comparison, the pull, and the sha256 gate. Note
+that a unit which cannot be reached physically has no recovery path if an image
+fails to boot (Arduino-ESP32 does not enable automatic OTA rollback by default),
+which is why staged rollout and the per-board hard gate below matter. **Never update while the relay is
 energised or a schedule-unlock window is active** — check `relayOffAt` and
 `gSchedActive` in [main.cpp:93-101](../../../../PlatformIO/Projects/RFID_Access/src/main.cpp#L93-L101). Stagger across the fleet.
 

@@ -34,6 +34,13 @@ fp-info-cache
 __pycache__/
 *.py[cod]
 
+# ---- Door state backups -----------------------------------------------------
+# Output of tools/backup-doors.ps1. Contains enrolled fob credential numbers --
+# anyone holding them can clone a working card -- so it must never reach a
+# public repo, even by accident.
+door-backup-*/
+*-fobs.json
+
 # ---- OS / archive noise -----------------------------------------------------
 __MACOSX/
 .DS_Store
