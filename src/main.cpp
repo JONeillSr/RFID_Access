@@ -44,6 +44,7 @@
 
 #include <Arduino.h>
 #include <WiFi.h>
+#include <LittleFS.h>
 #include <time.h>
 #include "PaxtonReader.h"
 #include "UnlockSchedule.h"
@@ -110,6 +111,11 @@ static volatile unsigned long resultUntil = 0;
 // True while the unlock schedule is holding the door open. Set only from
 // loop(); read by the OLED idle screen and the /status provider.
 static volatile bool gSchedActive = false;
+
+// LittleFS mount result. The roster and the event spool live here, so a failed
+// mount is a real degradation worth surfacing rather than hiding: the door
+// keeps working off whatever is already in RAM, but nothing new persists.
+static bool gFsOk = false;
 
 // -----------------------------------------------------------------------------
 //  OLED screens (built on the Display library primitives, mutex-guarded)
@@ -315,10 +321,7 @@ void accessTask(void* pv) {
 
             String uid = String(evt.card.uid);
             String name;
-            LOCK();
-            int idx = acFindEntry(uid);
-            if (idx >= 0) name = allowList[idx].name;
-            UNLOCK();
+            acNameFor(uid, name);      // leaves name empty if not enrolled
             oledShowResult(granted, uid, name);
         }
     }
@@ -360,12 +363,31 @@ void setup() {
     // visible in the serial monitor without a browser or even a WiFi connection.
     webService.log(String("[id] device=") + identity.deviceId() +
                    "  host=" + gHostname + ".local" +
-                   "  board=" BOARD_NAME);
+                   "  board=" BOARD_NAME "  fw=" FW_VERSION);
     {
         String door = identity.doorName();
         String site = identity.siteName();
         webService.log(String("[id] door=") + (door.length() ? door : "(unnamed)") +
                        "  site=" + (site.length() ? site : "(unset)"));
+    }
+
+    // -- Filesystem: home of the credential roster and the event spool. -------
+    // Mounted before acInit() because the roster loads from here. formatOnFail
+    // is deliberate: a brand-new partition (or a unit moving off the old table)
+    // arrives unformatted, and a door that refuses to start because its
+    // filesystem was never initialised would be a poor failure mode. The cost is
+    // that an unmountable-but-recoverable filesystem is reformatted rather than
+    // salvaged, which is acceptable while the cloud holds the master record.
+    gFsOk = LittleFS.begin(/*formatOnFail=*/true);
+    if (gFsOk) {
+        webService.log(String("[fs] LittleFS mounted: ") +
+                       (LittleFS.usedBytes() / 1024) + " KB used of " +
+                       (LittleFS.totalBytes() / 1024) + " KB");
+    } else {
+        // Not fatal: access control still runs. But nothing persists, so say so
+        // loudly rather than letting it look healthy.
+        webService.log("[fs] LittleFS MOUNT FAILED - roster and event spool "
+                       "will not persist");
     }
 
     // -- OLED: single shared Wire bus, brought up once, no scan. --------------
@@ -472,6 +494,14 @@ void setup() {
             // ESP32 variants, so a firmware image is only valid for one of
             // them. Anything pushing updates has to match this.
             body += "Board:    " BOARD_NAME "\n";
+            body += "Firmware: " FW_VERSION "\n";
+            if (gFsOk) {
+                body += "Filesys:  " + String(LittleFS.usedBytes() / 1024) +
+                        " KB used / " + String(LittleFS.totalBytes() / 1024) +
+                        " KB (LittleFS)\n";
+            } else {
+                body += "Filesys:  MOUNT FAILED - nothing persists\n";
+            }
             body += "OLED:     " + String(gOledOk ? "OK (0x3C)" : "NOT FOUND") + "\n";
             // Taps that raise this count but never decode usually mean the
             // wrong line format (Clock&Data vs Wiegand) or a swapped pair.
@@ -501,14 +531,25 @@ void setup() {
             } else {
                 body += "Schedule: disabled\n";
             }
+            body += "Enrolled: " + String(acCount()) + " card(s)\n";
+            // Roster file size is the honest persistence check: a populated
+            // in-RAM list with no file on disk means every reboot re-migrates
+            // from NVS, silently undoing any removal.
+            size_t rb = acRosterFileBytes();
+            if (!acPersistent()) {
+                body += "Roster:   NOT PERSISTING - filesystem unavailable\n";
+            } else if (rb == 0) {
+                body += "Roster:   IN RAM ONLY - /roster.dat missing, edits will be lost\n";
+            } else {
+                body += "Roster:   " + String(rb) + " B on disk (saved OK)\n";
+            }
             LOCK();
-            body += "Enrolled: " + String(allowCount) + " card(s)\n";
             if (logCount > 0) {
                 int last = (logHead - 1 + LOG_SIZE) % LOG_SIZE;
                 TapRecord& t = tapLog[last];
                 body += "Last tap: " + t.uid + " — " + (t.granted ? "GRANTED" : "DENIED") + "\n";
-                int idx = acFindEntry(t.uid);
-                if (idx >= 0) body += "Name:     " + allowList[idx].name + "\n";
+                String nm;
+                if (acNameFor(t.uid, nm)) body += "Name:     " + nm + "\n";
             } else {
                 body += "Last tap: none\n";
             }

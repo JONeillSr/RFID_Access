@@ -27,8 +27,8 @@ void registerWebHandlers(WebServer& server) {
             o["type"]    = tapLog[idx].type;
             o["granted"] = tapLog[idx].granted;
             o["ms"]      = tapLog[idx].ms;
-            int e = acFindEntry(tapLog[idx].uid);
-            o["name"] = (e >= 0) ? allowList[e].name : "";
+            String nm;
+            o["name"] = acNameFor(tapLog[idx].uid, nm) ? nm : String();
         }
         UNLOCK();
         String out;
@@ -38,13 +38,17 @@ void registerWebHandlers(WebServer& server) {
 
     server.on("/api/list", [&server]() {
         JsonDocument doc;
-        LOCK();
+        // Roster guards itself; the lock here covers lastUnknownUid only.
         JsonArray arr = doc["entries"].to<JsonArray>();
-        for (int i = 0; i < allowCount; i++) {
+        size_t n = acCount();
+        for (size_t i = 0; i < n; i++) {
+            String uid, name;
+            if (!acEntryAt(i, uid, name)) break;
             JsonObject o = arr.add<JsonObject>();
-            o["uid"]  = allowList[i].uid;
-            o["name"] = allowList[i].name;
+            o["uid"]  = uid;
+            o["name"] = name;
         }
+        LOCK();
         if (lastUnknownUid.length()) doc["unknown"] = lastUnknownUid;
         else                         doc["unknown"] = nullptr;
         UNLOCK();

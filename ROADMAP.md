@@ -132,13 +132,35 @@ flag.
 `min_spiffs.csv` leaves only 128 KB of filesystem, which the roster and spool
 have to share.
 
-*Measured after Phase 1:* the C6 image is **1.21 MB of the 1.875 MB slot (61.7%)**.
-TLS, LittleFS, and the sync client should land it near ~1.5 MB. That rules out the
-~1.6 MB slots first sketched here — 1.5 MB into 1.6 MB is ~91% full, too little
-margin for an OTA target. Use **1.75 MB slots + ~384 KB filesystem** instead:
-still ~83% headroom, and 384 KB is far more than needed (roster ≈ 12 KB at 300
-credentials, leaving room for ~9,000 spooled events). Re-check with
-`pio run -t size` once TLS is actually linked.
+**Settled** — `partitions_rfid.csv` is drafted and validated against the real
+`min_spiffs.csv` by `tools/check_partitions.py`:
+
+| | app0 / app1 | filesystem |
+|---|---|---|
+| `min_spiffs.csv` | 0x1E0000 (1.875 MB) | 0x20000 (128 KB) |
+| `partitions_rfid.csv` | 0x1D0000 (1.8125 MB) | **0x40000 (256 KB)** |
+
+The budget is fixed — after the 64 KB header and the 64 KB coredump,
+`2*app + fs = 0x3E0000` — so every 64 KB removed from each app slot buys 128 KB
+of filesystem. Taking just 64 KB doubles the filesystem and moves the DevKit
+image from 64.1% to 66.3% of its slot (625 KB still free for TLS). App size is
+the hard wall: an image that outgrows its slot cannot flash at all, whereas a
+smaller spool only shortens how long a door tolerates being disconnected. 256 KB
+holds the roster (~12 KB at 300 credentials) plus ~5,900 events — roughly a month
+of total outage at a busy door. The spool is a *buffer*; the cloud is the archive.
+
+**`nvs` and `otadata` keep byte-identical offsets and sizes** (0x9000/0x5000 and
+0xe000/0x2000), so enrolled fobs, WiFi credentials and the unlock schedule
+survive the change. A USB upload writes only 0x1000/0x8000/0xe000/0x10000 and
+never touches the NVS sectors at 0x9000–0xdfff.
+
+> ⚠️ **This step cannot be delivered over OTA.** OTA writes only the inactive app
+> slot; the partition table at 0x8000 is not part of that payload. Every unit
+> needs a USB flash for this one change — including any mounted somewhere
+> awkward. Mitigation for a mixed fleet: the filesystem partition is still
+> *named* `spiffs`, which is the label `LittleFS.begin()` defaults to, so an
+> image built for the new table still mounts a filesystem on a device left on
+> the old one — degraded to 128 KB rather than failing.
 
 ## Phase 3 — Backend: Azure Functions + Table Storage
 

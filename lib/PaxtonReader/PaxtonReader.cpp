@@ -32,22 +32,30 @@ void PaxtonReader::begin() {
 }
 
 // -- ISRs ---------------------------------------------------------------------
+//
+// IRAM_ATTR is declared ONCE, on the declarations in PaxtonReader.h, and is
+// deliberately NOT repeated here. Repeating it makes GCC emit a second, differently
+// numbered section (.iram1.N) for the same function and warn that it is ignoring
+// one of them. The attribute on the declaration is what takes effect, so these
+// still link into IRAM -- which is essential: they run with the flash cache
+// disabled (during an OTA write, for instance), and an ISR living in flash would
+// fault there rather than merely being slow.
 
-void IRAM_ATTR PaxtonReader::isrClock(void* arg) {
+void PaxtonReader::isrClock(void* arg) {
     PaxtonReader* self = static_cast<PaxtonReader*>(arg);
     // Data line is active-low: low at the clock edge = logical 1.
     self->pushBit(digitalRead(self->_dataPin) == LOW ? 1 : 0);
 }
 
-void IRAM_ATTR PaxtonReader::isrData0(void* arg) {
+void PaxtonReader::isrData0(void* arg) {
     static_cast<PaxtonReader*>(arg)->pushBit(0);
 }
 
-void IRAM_ATTR PaxtonReader::isrData1(void* arg) {
+void PaxtonReader::isrData1(void* arg) {
     static_cast<PaxtonReader*>(arg)->pushBit(1);
 }
 
-void IRAM_ATTR PaxtonReader::pushBit(uint8_t bit) {
+void PaxtonReader::pushBit(uint8_t bit) {
     portENTER_CRITICAL_ISR(&_mux);
     uint32_t now = micros();
     // Glitch filter: a slow rising edge crossing the threshold noisily can
@@ -58,8 +66,14 @@ void IRAM_ATTR PaxtonReader::pushBit(uint8_t bit) {
         portEXIT_CRITICAL_ISR(&_mux);
         return;
     }
-    _edges++;
-    if (_count < MAX_BITS) _bits[_count++] = bit;
+    // Written as explicit read-modify-write rather than ++: C++20 deprecates
+    // increment on a volatile-qualified type. Identical semantics here, and the
+    // surrounding critical section is what actually provides atomicity.
+    _edges = _edges + 1;
+    if (_count < MAX_BITS) {
+        _bits[_count] = bit;
+        _count        = _count + 1;
+    }
     _lastEdgeUs = now;
     portEXIT_CRITICAL_ISR(&_mux);
 }

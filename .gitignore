@@ -8,9 +8,20 @@ sdkconfig.*
 .vscode/launch.json
 .vscode/ipch
 
-# Machine-local Claude Code settings (permissions etc.); the shared
-# .claude/settings.json, if one is ever added, stays tracked.
-.claude/settings.local.json
+# ---- Claude Code ------------------------------------------------------------
+# The WHOLE directory, not just settings.local.json: anything the tool writes
+# here is machine-local and can embed absolute paths (including the Windows
+# username), captured tool output, or working notes. Ignoring the file alone
+# would let any future addition slip into a public repo unnoticed.
+#
+# Conversation transcripts are NOT stored here -- they live per-user under
+# %USERPROFILE%\.claude\projects\, outside every repository -- so they cannot be
+# published by committing this project.
+#
+# To deliberately share project-level config later, un-ignore just that file:
+#     !.claude/settings.json
+.claude/
+.agents/
 
 # VS Code "Local History" extension. Ignored deliberately: it mirrors whole
 # files on every save, and it contains its OWN nested .git directory, which

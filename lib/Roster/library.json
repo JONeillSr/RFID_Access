@@ -1,0 +1,6 @@
+{
+  "name": "Roster",
+  "version": "1.0.0",
+  "description": "Persistent credential roster on LittleFS: salted-hash keyed, binary-searched, CRC-checked, with atomic save (write-temp-then-rename) and an atomic wholesale replace for cloud sync. Self-guarding against concurrent access. Depends only on LittleFS + mbedTLS from the ESP32 core.",
+  "dependencies": {}
+}

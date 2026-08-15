@@ -1,0 +1,37 @@
+# Partition table for RFID Access on 4 MB flash.
+#
+# Derived from arduino-esp32's min_spiffs.csv. Only ONE thing changes: 64 KB is
+# taken off each OTA app slot to double the filesystem, which Phase 2 needs for
+# the credential roster and the persistent event spool.
+#
+#   min_spiffs   app0/app1 = 0x1E0000 (1.875 MB)   fs = 0x20000 (128 KB)
+#   this table   app0/app1 = 0x1D0000 (1.8125 MB)  fs = 0x40000 (256 KB)
+#
+# The budget is fixed: after the 64 KB header region and the 64 KB coredump,
+# 2*app + fs must equal 0x3E0000. So every 64 KB removed from each app slot buys
+# 128 KB of filesystem. 64 KB (3.4% of the slot) is a cheap price for twice the
+# spool, and app size is the hard wall -- an image that outgrows its slot simply
+# will not flash, whereas a smaller spool only shortens how long a door can run
+# disconnected before it starts discarding its oldest events.
+#
+# 256 KB holds the roster (~12 KB at 300 credentials) plus roughly 5,900 spooled
+# events at ~40 B each -- about a month of total cloud outage for a busy door.
+# The spool is a BUFFER, not an archive; the cloud is the archive.
+#
+# nvs and otadata keep min_spiffs' exact offsets and sizes on purpose: that is
+# what lets an existing unit keep its enrolled fobs, WiFi credentials and unlock
+# schedule across this change. Never move or resize nvs without planning to lose
+# all of it.
+#
+# The filesystem partition stays NAMED "spiffs" even though LittleFS is what
+# mounts it. LittleFS.begin() on arduino-esp32 defaults to the partition labelled
+# "spiffs", and keeping the name means an image built for this table still mounts
+# a filesystem on a device that is somehow still running the old one.
+#
+# Name,   Type, SubType, Offset,  Size,     Flags
+nvs,      data, nvs,     0x9000,  0x5000,
+otadata,  data, ota,     0xe000,  0x2000,
+app0,     app,  ota_0,   0x10000, 0x1D0000,
+app1,     app,  ota_1,   0x1E0000,0x1D0000,
+spiffs,   data, spiffs,  0x3B0000,0x40000,
+coredump, data, coredump,0x3F0000,0x10000,

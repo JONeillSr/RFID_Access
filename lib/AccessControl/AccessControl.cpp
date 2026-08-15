@@ -1,88 +1,124 @@
 #include "AccessControl.h"
+#include "Roster.h"
+#include <LittleFS.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
 
-Entry     allowList[MAX_ENTRIES];
-int       allowCount = 0;
 TapRecord tapLog[LOG_SIZE];
 int       logCount = 0, logHead = 0;
 String    lastUnknownUid = "";
 
 SemaphoreHandle_t dataMutex;
 
-static Preferences prefs;
+static const char* ROSTER_PATH = "/roster.dat";
 
-static void saveAllowList() {
-    JsonDocument doc;
-    JsonArray arr = doc.to<JsonArray>();
-    for (int i = 0; i < allowCount; i++) {
-        JsonObject o = arr.add<JsonObject>();
-        o["uid"]  = allowList[i].uid;
-        o["name"] = allowList[i].name;
-    }
-    String out;
-    serializeJson(doc, out);
-    prefs.begin("access", false);
-    prefs.putString("allow", out);
-    prefs.end();
-}
+static Roster gRoster;
 
-static void loadAllowList() {
+// -----------------------------------------------------------------------------
+//  Migration from the pre-2.0 NVS allow-list
+// -----------------------------------------------------------------------------
+//
+// Units upgrading from the single-door firmware hold their enrolled cards as a
+// JSON blob in NVS ("access"/"allow"). Import it once, the first time this build
+// runs on a device that has no roster file yet.
+//
+// The gate is the EXISTENCE of the roster file, not whether it is empty. That
+// distinction matters: an operator who deliberately removes every card leaves an
+// empty-but-present roster, and re-importing the old NVS list on the next reboot
+// would silently resurrect credentials they had revoked.
+//
+// The NVS blob is deliberately NOT deleted. It costs a few hundred bytes and is
+// the only copy of the old list if the roster file is ever lost.
+
+static void migrateFromNvs() {
+    Preferences prefs;
     prefs.begin("access", true);
     String in = prefs.getString("allow", "[]");
     prefs.end();
+
     JsonDocument doc;
     if (deserializeJson(doc, in) != DeserializationError::Ok) return;
-    allowCount = 0;
-    for (JsonObject o : doc.as<JsonArray>()) {
-        if (allowCount >= MAX_ENTRIES) break;
-        allowList[allowCount].uid  = o["uid"].as<String>();
-        allowList[allowCount].name = o["name"].as<String>();
-        allowCount++;
+
+    JsonArray arr = doc.as<JsonArray>();
+    if (arr.isNull() || arr.size() == 0) return;
+
+    static Roster::Entry staged[64];
+    size_t n = 0;
+    for (JsonObject o : arr) {
+        if (n >= sizeof(staged) / sizeof(staged[0])) break;
+        String uid  = o["uid"].as<String>();
+        String name = o["name"].as<String>();
+        if (!uid.length()) continue;
+        memset(&staged[n], 0, sizeof(staged[n]));
+        staged[n].hash = gRoster.hashOf(uid.c_str());
+        strncpy(staged[n].cred, uid.c_str(),  Roster::MAX_CRED - 1);
+        strncpy(staged[n].name, name.c_str(), Roster::MAX_NAME - 1);
+        n++;
     }
+    if (n) gRoster.replaceAll(staged, n, /*rev=*/0);
 }
 
 void acInit() {
     dataMutex = xSemaphoreCreateMutex();
-    loadAllowList();
+
+    // Check before begin(): begin() creates nothing, but being explicit about
+    // the pre-existing state keeps the migration gate readable.
+    bool hadRosterFile = LittleFS.exists(ROSTER_PATH);
+
+    gRoster.begin(ROSTER_PATH);
+
+    if (!hadRosterFile) migrateFromNvs();
 }
 
-int acFindEntry(const String& uid) {
-    for (int i = 0; i < allowCount; i++)
-        if (allowList[i].uid == uid) return i;
-    return -1;
+// ---- roster queries ---------------------------------------------------------
+
+size_t acCount() { return gRoster.count(); }
+
+bool acEntryAt(size_t index, String& uid, String& name) {
+    Roster::Entry e;
+    if (!gRoster.entryAt(index, e)) return false;
+    uid  = e.cred;
+    name = e.name;
+    return true;
 }
+
+bool acNameFor(const String& uid, String& name) {
+    Roster::Entry e;
+    if (!gRoster.findByCredential(uid.c_str(), e)) return false;
+    name = e.name;
+    return true;
+}
+
+bool acPersistent() { return gRoster.persistent(); }
+
+size_t acRosterFileBytes() {
+    File f = LittleFS.open(ROSTER_PATH, "r");
+    if (!f) return 0;
+    size_t n = f.size();
+    f.close();
+    return n;
+}
+
+// ---- roster mutation --------------------------------------------------------
 
 void acAddEntry(const String& uid, const String& name) {
-    LOCK();
-    if (uid.length() && acFindEntry(uid) < 0 && allowCount < MAX_ENTRIES) {
-        allowList[allowCount++] = {uid, name};
+    if (!uid.length()) return;
+    if (gRoster.add(uid.c_str(), name.c_str())) {
+        LOCK();
         if (lastUnknownUid == uid) lastUnknownUid = "";
-        saveAllowList();
+        UNLOCK();
     }
-    UNLOCK();
 }
 
 void acRenameEntry(const String& uid, const String& name) {
-    LOCK();
-    int e = acFindEntry(uid);
-    if (e >= 0 && name.length()) {
-        allowList[e].name = name;
-        saveAllowList();
-    }
-    UNLOCK();
+    gRoster.rename(uid.c_str(), name.c_str());
 }
 
 void acRemoveEntry(const String& uid) {
-    LOCK();
-    int e = acFindEntry(uid);
-    if (e >= 0) {
-        for (int i = e; i < allowCount - 1; i++) allowList[i] = allowList[i + 1];
-        allowCount--;
-        saveAllowList();
-    }
-    UNLOCK();
+    gRoster.remove(uid.c_str());
 }
+
+// ---- decision ---------------------------------------------------------------
 
 bool acProcessEvent(const AppEvent& evt) {
     if (evt.type != EVT_CARD_TAP) return false;
@@ -90,13 +126,16 @@ bool acProcessEvent(const AppEvent& evt) {
     String uid  = evt.card.uid;
     String type = evt.card.cardType;
 
+    // Roster lookup first, outside the tap-log lock: it guards itself, and
+    // holding two locks longer than necessary buys nothing here.
+    Roster::Entry e;
+    bool granted = gRoster.findByCredential(uid.c_str(), e);
+    String nm    = granted ? String(e.name) : String();
+
     LOCK();
-    int  e       = acFindEntry(uid);
-    bool granted = (e >= 0);
     tapLog[logHead] = {uid, type, granted, millis()};
     logHead = (logHead + 1) % LOG_SIZE;
     if (logCount < LOG_SIZE) logCount++;
-    String nm = granted ? allowList[e].name : "";
     if (!granted) lastUnknownUid = uid;
     UNLOCK();
 
