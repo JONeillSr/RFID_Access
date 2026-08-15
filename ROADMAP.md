@@ -221,6 +221,18 @@ fleet generates maybe a few MB a year).
 3. **Unknown cards have no person.** They land in `EventsByPerson` under
    `unknown-{yyyyMM}`, which conveniently *is* the "unknown taps" feed the admin
    UI enrolls from.
+4. **Some events have no person at all** — exit-button presses, schedule
+   transitions, boots, sync failures. These go to `EventsByDoor` **only**; there
+   is no sensible person partition for them and inventing one would pollute the
+   person report. The door timeline is the complete record; the person timeline
+   is a filtered view of it.
+
+   The exit button matters most here: it releases the door with **no record of
+   who**, by design — it sits on the secure side and is honoured unconditionally
+   (fire egress). So a door timeline reads as a mix of attributable entries and
+   unattributable releases, and that is the truth of the installation rather than
+   a modelling failure. Worth an explicit report: *exit events with no preceding
+   grant at that door* — someone leaving who never badged in.
 
 **Date ranges crossing months** fan out across N monthly partitions and merge in
 the Function. Fine for the report windows you'd actually run; if you ever want
