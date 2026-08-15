@@ -1,0 +1,8 @@
+{
+  "name": "CloudSync",
+  "version": "1.0.0",
+  "description": "Backend sync client: uploads spooled access events and applies the roster/config the server returns. Runs on its own task and is never in the access decision path -- a failure leaves the cached roster authoritative. Embeds its own TLS trust anchors; an ESP32 has no system trust store.",
+  "dependencies": {
+    "bblanchon/ArduinoJson": "^7.1.0"
+  }
+}

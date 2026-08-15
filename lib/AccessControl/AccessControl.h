@@ -76,3 +76,27 @@ size_t acRosterFileBytes();
 void acAddEntry(const String& uid, const String& name);
 void acRenameEntry(const String& uid, const String& name);
 void acRemoveEntry(const String& uid);
+
+// ---- wholesale replacement (cloud sync) -------------------------------------
+
+/// One credential as supplied by the backend.
+struct RosterUpdate {
+    const char* cred;
+    const char* name;
+};
+
+/// Replace the ENTIRE roster with the backend's list and record its revision.
+///
+/// Atomic: the new roster is built completely before being swapped in, so a tap
+/// arriving mid-sync is evaluated against either the old list or the new one,
+/// never a partial one.
+///
+/// Destructive by design — this is what makes the cloud authoritative. Any
+/// credential absent from `entries` stops opening this door. Returns false and
+/// leaves the existing roster untouched if the write fails, so a failed sync
+/// never costs a door its allow-list.
+bool acReplaceRoster(const RosterUpdate* entries, size_t n, uint32_t rev);
+
+/// Revision of the roster currently held; 0 = never synced. Sent on every sync
+/// so the backend can skip the payload when nothing has changed.
+uint32_t acRosterRev();

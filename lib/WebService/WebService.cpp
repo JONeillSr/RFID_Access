@@ -5,6 +5,7 @@
 
 #include "WebService.h"
 #include <ElegantOTA.h>
+#include <time.h>   // log timestamps
 
 WebService::WebService(uint16_t port) : _server(port) {
     _logMutex = xSemaphoreCreateMutex();
@@ -12,17 +13,41 @@ WebService::WebService(uint16_t port) : _server(port) {
 
 // ---- remote log -------------------------------------------------------------
 
+// Prefix every log line with a time. Without one the ring buffer reads as a set
+// of simultaneous assertions rather than a sequence -- "not paired" followed
+// later by "paired successfully" looks like a contradiction instead of a
+// history.
+//
+// Wall-clock once NTP has landed, uptime before that, and the two are visually
+// distinct (`19:05:12` vs `+127s`) so it is obvious which you are looking at.
+// That distinction is not cosmetic: everything logged during the first seconds
+// of a boot happens before the clock is trustworthy, and silently printing
+// 1970 timestamps would be worse than admitting the clock is not set yet.
+static String logStamp() {
+    time_t now = time(nullptr);
+    char buf[16];
+    if (now > 1700000000) {               // plausible wall clock -> NTP is in
+        struct tm tm;
+        localtime_r(&now, &tm);
+        strftime(buf, sizeof(buf), "%H:%M:%S", &tm);
+    } else {
+        snprintf(buf, sizeof(buf), "+%lus", (unsigned long)(millis() / 1000));
+    }
+    return String(buf);
+}
+
 void WebService::log(const String& line) {
-    Serial.println(line);                 // always echo to physical serial
+    String stamped = logStamp() + "  " + line;
+    Serial.println(stamped);              // always echo to physical serial
     if (!_logMutex) return;
     xSemaphoreTake(_logMutex, portMAX_DELAY);
-    _log[_logHead] = line;
+    _log[_logHead] = stamped;
     _logHead = (_logHead + 1) % LOG_LINES;
     if (_logCount < LOG_LINES) _logCount++;
     // Live-push to a connected telnet client (under the same lock so writes
     // from different tasks don't interleave).
     if (_telnetClient && _telnetClient.connected()) {
-        _telnetClient.println(line);
+        _telnetClient.println(stamped);
     }
     xSemaphoreGive(_logMutex);
 }

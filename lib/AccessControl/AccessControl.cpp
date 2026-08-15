@@ -119,6 +119,39 @@ void acRemoveEntry(const String& uid) {
     gRoster.remove(uid.c_str());
 }
 
+bool acReplaceRoster(const RosterUpdate* entries, size_t n, uint32_t rev) {
+    if (n > 0 && !entries) return false;
+
+    // Build the Roster::Entry array here rather than in CloudSync so the hash
+    // salt and record layout stay private to this module.
+    Roster::Entry* staged = (Roster::Entry*)calloc(n ? n : 1, sizeof(Roster::Entry));
+    if (!staged) return false;
+
+    size_t k = 0;
+    for (size_t i = 0; i < n; i++) {
+        const char* cred = entries[i].cred;
+        if (!cred || !*cred) continue;                  // skip malformed rows
+        memset(&staged[k], 0, sizeof(staged[k]));
+        staged[k].hash = gRoster.hashOf(cred);
+        strncpy(staged[k].cred, cred, Roster::MAX_CRED - 1);
+        if (entries[i].name) strncpy(staged[k].name, entries[i].name, Roster::MAX_NAME - 1);
+        k++;
+    }
+
+    bool ok = gRoster.replaceAll(staged, k, rev);
+    free(staged);
+
+    if (ok) {
+        // A roster change is worth an audit record: it is the moment a door's
+        // idea of who may enter changed, and correlating that with a later
+        // "why was I denied" is otherwise guesswork.
+        eventLog.append(EventLog::EVT_CONFIG, EventLog::R_NONE, false, "");
+    }
+    return ok;
+}
+
+uint32_t acRosterRev() { return gRoster.rev(); }
+
 // ---- decision ---------------------------------------------------------------
 
 bool acProcessEvent(const AppEvent& evt) {

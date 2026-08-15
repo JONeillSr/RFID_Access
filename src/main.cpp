@@ -57,6 +57,7 @@
 #include "Events.h"
 #include "AccessControl.h"
 #include "EventLog.h"
+#include "CloudSync.h"
 #include "WebHandlers.h"
 #include "DeviceSettings.h"
 #include "DeviceIdentity.h"
@@ -76,6 +77,11 @@
 // Local timezone for the unlock schedule (POSIX TZ format; handles DST
 // automatically). Default is US Eastern — adjust for your locale.
 #define TZ_INFO        "EST5EDT,M3.2.0,M11.1.0"
+
+// Backend the sync client talks to. Devices validate it against the trust
+// anchors embedded in lib/CloudSync/RootCerts.h -- changing this host means
+// re-checking that its certificate chain still anchors to one of them.
+#define CLOUD_HOST     "jtc-prod-rfidaccess-eastus2-func.azurewebsites.net"
 
 // -- Globals ------------------------------------------------------------------
 // Clock & Data is the P-series' native output on Net2 wiring; pass
@@ -486,10 +492,55 @@ void setup() {
                     "Door and site names apply immediately. A changed mDNS hostname only "
                     "takes effect after a reboot, since the responder is started at boot."
                     "</div>";
+
+            // ---- Cloud pairing ----
+            CloudSync::Status cs = cloudSync.status();
+            html += "<h2>Cloud</h2>";
+            if (cs.paired) {
+                html += "<div class='hint'>Paired with " CLOUD_HOST ".<br>";
+                if (cs.everSynced) {
+                    html += "Last sync " + String(cs.secsSinceSuccess) + "s ago, roster rev " +
+                            String(cs.rosterRev) + ".";
+                } else {
+                    html += "Paired but has not completed a sync yet.";
+                }
+                if (cs.lastError.length()) {
+                    html += "<br><span style='color:#e0a458'>Last error: " +
+                            WebService::escapeText(cs.lastError) + "</span>";
+                }
+                html += "</div>";
+                html += "<label>Re-pair with a new code</label>";
+            } else {
+                html += "<div class='hint'>Not paired. This door decides access entirely "
+                        "from its local roster and reports to nobody. Generate a pairing "
+                        "code in the admin app and enter it here.</div>";
+                html += "<label>Pairing code</label>";
+            }
+            html += "<input type='text' name='pairCode' value='' placeholder='8 characters' "
+                    "autocapitalize='characters' autocomplete='off'>";
+            html += "<div class='hint'>Codes expire after 15 minutes and work once. "
+                    "Pairing contacts the backend, so it may take a few seconds.</div>";
         });
         webService.setSetupSaveHandler([](WebServer& s) {
             if (s.hasArg("doorName")) identity.setDoorName(s.arg("doorName"));
             if (s.hasArg("siteName")) identity.setSiteName(s.arg("siteName"));
+
+            // Pairing is deliberately handled last: it blocks for a TLS
+            // handshake and a round trip, and the name fields above should be
+            // saved even if the backend is unreachable.
+            String code = s.arg("pairCode");
+            code.trim();
+            if (code.length()) {
+                String err;
+                if (cloudSync.pair(code, err)) {
+                    webService.log("[cloud] paired successfully, syncing now");
+                } else {
+                    // Surfaced on /webserial and telnet rather than swallowed:
+                    // a failed pairing with no explanation is the sort of thing
+                    // that gets blamed on the device.
+                    webService.log("[cloud] pairing FAILED: " + err);
+                }
+            }
         });
 
         // Show the mDNS label on /status, and inject app-specific status lines.
@@ -560,6 +611,25 @@ void setup() {
             // confirmed; nothing acks until Phase 3's sync client exists, so it
             // only grows for now — and it MUST survive a reboot, which is the
             // whole difference between this and the RAM-only tapLog below.
+            {
+                CloudSync::Status cs = cloudSync.status();
+                body += "Cloud:    ";
+                if (!cs.paired) {
+                    body += "not paired\n";
+                } else if (!cs.everSynced) {
+                    body += "paired, NEVER SYNCED";
+                    if (cs.lastError.length()) body += " - " + cs.lastError;
+                    body += "\n";
+                } else {
+                    body += "synced " + String(cs.secsSinceSuccess) + "s ago, rev " +
+                            String(cs.rosterRev) + ", " + String(cs.eventsSent) +
+                            " event(s) sent";
+                    if (cs.stale) body += "  [STALE - roster may be out of date]";
+                    if (cs.failures) body += "  [" + String(cs.failures) + " failure(s): " +
+                                              cs.lastError + "]";
+                    body += "\n";
+                }
+            }
             body += "Events:   " + String(eventLog.pending()) + " pending, " +
                     String(eventLog.bytesOnDisk()) + " B on disk, boot #" +
                     String(eventLog.bootId());
@@ -587,6 +657,15 @@ void setup() {
         webService.addFooterLink("Manage fobs", "/config");
 
         webService.begin();   // serves /status /update /webserial + project routes
+
+        // Sync client last: it depends on WiFi, the roster, the spool and the
+        // settings store, and it must never delay any of them coming up. It
+        // starts its own task and does nothing at all until the device is
+        // paired, so an unpaired door costs no network traffic.
+        cloudSync.begin(&settings, &identity, CLOUD_HOST);
+        webService.log(String("[cloud] ") +
+                       (cloudSync.paired() ? "paired - sync task started"
+                                           : "not paired - enter a code at /setup"));
     }
 }
 
