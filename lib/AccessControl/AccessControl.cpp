@@ -1,5 +1,6 @@
 #include "AccessControl.h"
 #include "Roster.h"
+#include "EventLog.h"
 #include <LittleFS.h>
 #include <Preferences.h>
 #include <ArduinoJson.h>
@@ -138,6 +139,14 @@ bool acProcessEvent(const AppEvent& evt) {
     if (logCount < LOG_SIZE) logCount++;
     if (!granted) lastUnknownUid = uid;
     UNLOCK();
+
+    // Durable record, outside the lock: this is a filesystem write, and holding
+    // the tap-log mutex across it would stall any web handler reading /api/taps.
+    // The raw credential is stored even on a denial -- that is what lets an
+    // unknown card be enrolled from the central UI later.
+    eventLog.append(EventLog::EVT_TAP,
+                    granted ? EventLog::R_ENROLLED : EventLog::R_NOT_ENROLLED,
+                    granted, uid.c_str());
 
     Serial.print(granted ? ">>> GRANTED  " : ">>> DENIED   ");
     Serial.print("UID: ");

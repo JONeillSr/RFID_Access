@@ -1,0 +1,6 @@
+{
+  "name": "EventLog",
+  "version": "1.0.0",
+  "description": "Durable append-only spool of access events on LittleFS, held until a backend acknowledges them. Per-record CRC survives torn writes; (bootId, idx) stamping gives the server a globally unique idempotency key; events logged before NTP carry uptime for later resolution. Depends only on LittleFS + Preferences from the ESP32 core.",
+  "dependencies": {}
+}
