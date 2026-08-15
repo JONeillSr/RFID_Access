@@ -1,0 +1,28 @@
+{
+  "name": "rfid-access-api",
+  "version": "1.0.0",
+  "description": "Azure Functions backend for the RFID Access door fleet",
+  "private": true,
+  "//main": "rootDir is '..' so that shared/types.ts compiles in too; that puts the api sources under dist/api/. This glob must match that layout or the host registers no functions.",
+  "main": "dist/api/src/functions/*.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "clean": "rimraf dist",
+    "prestart": "npm run clean && npm run build",
+    "start": "func start",
+    "typecheck": "tsc --noEmit",
+    "seed": "node dist/api/src/tools/seed.js"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.5.0",
+    "@azure/data-tables": "^13.3.0",
+    "@azure/storage-blob": "^12.24.0",
+    "@azure/identity": "^4.4.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "rimraf": "^5.0.7",
+    "typescript": "^5.5.0"
+  }
+}

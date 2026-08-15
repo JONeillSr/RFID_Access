@@ -1,0 +1,40 @@
+{
+  "_comment": [
+    "Copy to seed.json and fill in with real values. seed.json is gitignored:",
+    "credential 'number' fields are the actual fob numbers, and anyone holding",
+    "one can clone a working card.",
+    "",
+    "Get real numbers from tools/backup-doors.ps1 output, or from a door's",
+    "/api/list endpoint.",
+    "",
+    "deviceId comes from the 'Device:' line on a door's /status page."
+  ],
+
+  "groups": [
+    { "groupId": "staff", "name": "Staff" },
+    { "groupId": "contractors", "name": "Contractors" }
+  ],
+
+  "people": [
+    {
+      "personId": "example-person",
+      "name": "Example Person",
+      "email": "someone@example.com",
+      "groups": ["staff"],
+      "credentials": [
+        { "credId": "example-fob", "number": "0000000000", "label": "keychain fob" }
+      ]
+    }
+  ],
+
+  "doors": [
+    {
+      "deviceId": "rfid-000000",
+      "name": "Front Door",
+      "site": "Example Site",
+      "board": "ESP32 DevKit V1",
+      "groups": ["staff"],
+      "config": { "relayHoldMs": 3000, "resultHoldMs": 4000 }
+    }
+  ]
+}

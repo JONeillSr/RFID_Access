@@ -52,6 +52,40 @@ __pycache__/
 door-backup-*/
 *-fobs.json
 
+# ---- Azure / cloud deployment -----------------------------------------------
+# Tenant and subscription IDs are not credentials, but they identify exactly
+# which tenant to target and have no business in a public repo. The Bicep
+# templates are deliberately free of them (deployment scope supplies both), so
+# only these local files carry them.
+cloud/infra/deploy.local.ps1
+cloud/infra/*.parameters.json
+!cloud/infra/*.parameters.example.json
+.azure/
+*.azureauth
+
+# Seed data holds real fob numbers -- those ARE the credentials, so the filled-in
+# copy never gets committed. Only the placeholder example is tracked.
+cloud/api/seed.json
+seed.json
+
+# Anything that actually IS a secret
+*.pfx
+*.pem
+!lib/CloudSync/**/*.pem
+.env
+.env.*
+!.env.example
+local.settings.json
+
+# Node (cloud/api, cloud/web)
+node_modules/
+dist/
+.func/
+azure-functions-core-tools/
+# Deployment bundles: build artifacts, often tens of MB, always regenerable.
+deploy.zip
+*.deploy.zip
+
 # ---- OS / archive noise -----------------------------------------------------
 __MACOSX/
 .DS_Store

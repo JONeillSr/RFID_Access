@@ -362,7 +362,11 @@ lib/                    reusable, application-agnostic libraries
                         optional /setup; projects add routes
   DeviceSettings/       NVS settings store (WebService dependency)
   DeviceIdentity/       MAC-derived device ID, mDNS hostname, door/site labels
-  AccessControl/        allow-list + access decision
+  Roster/               LittleFS credential store: hash-keyed, CRC-checked,
+                        atomic save, atomic wholesale replace for cloud sync
+  EventLog/             durable append-only event spool held until the backend
+                        acknowledges it (taps, exit, schedule, boot)
+  AccessControl/        access decision + recent-tap log (storage lives in Roster)
   Events/               app event types + queue (card-tap, exit-request)
   PaxtonReader/         Clock & Data / Wiegand reader driver + reader LEDs
   UnlockSchedule/       NVS-backed timed-unlock window (fails secure w/o NTP)
@@ -371,7 +375,18 @@ src/                    project-specific code
   main.cpp              wiring, tasks, screens, relay/LED/buzzer logic
   Pins.h                per-board peripheral pin map
   JTLogoBitmap.h        splash bitmap
+tools/                  operational scripts
+  backup-doors.ps1      snapshot a door's fobs + schedule before a reflash
+  check_partitions.py   validate partitions_rfid.csv (incl. NVS preservation)
+  check_roster_logic.py exercise Roster's ordering/lookup algorithms
+cloud/                  Azure backend (TypeScript, deployed separately)
+  shared/types.ts       contract shared by the API and the admin web app
+  api/                  Azure Functions: /api/v1/sync, /api/v1/enroll
+  infra/                Bicep: storage, tables, Function App, observability
 ```
+
+`ROADMAP.md` tracks the multi-door / cloud programme: what is built, what is
+next, and — more usefully — why each decision went the way it did.
 
 The split is deliberate: `lib/` holds code reusable across projects and visible
 to other libraries; `src/` holds this project's specifics. Two complementary

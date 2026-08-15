@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    // node16 rather than the legacy commonjs/node10 pair: node10 resolution is
+    // deprecated and removed in TypeScript 7. With no "type" field in
+    // package.json, node16 still emits CommonJS, which is what the Azure
+    // Functions Node host loads -- so this is a compile-time change only.
+    "module": "node16",
+    "moduleResolution": "node16",
+    "outDir": "dist",
+    "rootDir": "..",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "sourceMap": true,
+    "declaration": false,
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*.ts", "../shared/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

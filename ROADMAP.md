@@ -33,7 +33,7 @@ holds the system of record.
 | Permissions | People → groups; doors allow groups. Server flattens; device stays dumb |
 | Admin | Static Web App + Entra ID — the single place doors are viewed and configured |
 | Device pages | **Read-only once paired.** Enrollment is cloud-only; no local writes |
-| API language | TypeScript / Node 20 — shares types with the SWA frontend |
+| API language | TypeScript / Node 24 — shares types with the SWA frontend |
 | Primary report | **"Did this person enter any door?"** — person-centric, spanning the fleet |
 | Secondary report | "This person at this door" and "everyone at this door" |
 
@@ -95,7 +95,13 @@ flag.
   RFID_Access never calls them. Wire them up and inject door name, site, and the
   cloud pairing field (Phase 4).
 
-## Phase 2 — Device: scalable roster + persistent event spool
+## Phase 2 — Device: scalable roster + persistent event spool ✅ COMPLETE
+
+> **Verified on hardware 2026-08-15**, firmware 2.2.1. Partition table applied
+> over USB to both DevKits with **NVS preserved** — enrolled fobs survived
+> untouched, exactly as the offset analysis predicted. Roster confirmed
+> persisting (`Roster: 272 B on disk`), spool confirmed surviving reboot.
+> Migration off the NVS allow-list ran automatically on first boot.
 
 **New `lib/Roster/`** replaces the fixed array behind `AccessControl`'s existing API.
 
@@ -162,9 +168,26 @@ never touches the NVS sectors at 0x9000–0xdfff.
 > image built for the new table still mounts a filesystem on a device left on
 > the old one — degraded to 128 KB rather than failing.
 
-## Phase 3 — Backend: Azure Functions + Table Storage
+## Phase 3 — Backend: Azure Functions + Table Storage ✅ DEPLOYED
 
-New `cloud/` tree, outside the PlatformIO project. **TypeScript / Node 20**
+> **Live as of 2026-08-15.** `POST /api/v1/sync` and `POST /api/v1/enroll` are
+> deployed and verified rejecting unauthenticated, wrong-key and malformed
+> requests. Data model seeded and verified.
+>
+> Endpoint: `https://jtc-prod-rfidaccess-eastus2-func.azurewebsites.net/api/v1/`
+> Resource group: `JTC-prod-rfidaccess-eastus2-rg` — see `cloud/infra/README.md`.
+>
+> **Region is East US 2, not East US.** Flex Consumption is not offered in
+> eastus, and Flex is what allows the deployment package to be read by managed
+> identity instead of a storage account key — which is what lets the data
+> account keep `allowSharedKeyAccess: false`. Y1 Consumption and a key-less
+> storage account are mutually exclusive; that constraint drove the region.
+>
+> Still outstanding in this phase: admin CRUD endpoints (they arrive with the
+> Phase 5 UI), firmware offers in the sync response (the per-board gate below
+> needs care), and the retention/archive timer.
+
+New `cloud/` tree, outside the PlatformIO project. **TypeScript / Node 24**
 Function App, with the sync contract, entity shapes, and report types in a shared
 `cloud/shared/types.ts` that both the API and the Static Web App import — so the
 two halves cannot drift.
@@ -353,6 +376,14 @@ block. Editing a door in the web app is the normal path; walking to it is not.
     every door, newest first. The headline query.
   - *Person at one door* — the same view filtered to one `deviceId`.
   - *Door* — everyone through door A.
+  - *Unattributed exits* ⭐ — **exit-button releases with no preceding grant at
+    that door**, within a configurable window. The exit button opens the door
+    with no record of who, by design, so this is the report that surfaces the
+    gap: someone leaving who never badged in. Expect legitimate hits (a visitor
+    let in by hand, someone following another person in), which is the point —
+    it turns an invisible blind spot into a reviewable list. Once a door-position
+    sensor exists (see Phase 6) this sharpens considerably, because a *forced*
+    door becomes distinguishable from a legitimate exit.
   - Each filterable by granted/denied and exportable to CSV.
 - **Unknown taps → one-click enroll** — the central version of today's
   `lastUnknownUid` flow ([AccessControl.cpp:100](../../../../PlatformIO/Projects/RFID_Access/lib/AccessControl/AccessControl.cpp#L100)); pick the card, attach it to a
@@ -382,6 +413,39 @@ behaves exactly as today.
 
 Add sync state to the existing `setStatusProvider` block
 ([main.cpp:396](../../../../PlatformIO/Projects/RFID_Access/src/main.cpp#L396)): last sync, roster rev, spool depth, pairing state.
+
+## Phase 6 — Door position sensing (hardware-gated)
+
+**Independent of Phases 3–5** and can land whenever the hardware exists; it needs
+no backend. Listed last only because it waits on parts.
+
+Today the firmware knows a *relay fired* — not that a door opened. Three states
+are invisible: a release nobody walks through, a door propped open after a
+legitimate release, and a door forced with no release at all. The exit button
+makes this sharper, because it releases the door with no record of who.
+
+**Hardware:** a reed contact (magnetic door-position switch) on the frame, one
+GPIO to ground with an internal pull-up — the same wiring pattern as the exit
+button. The classic ESP32 DevKit has spare pins; **the XIAO C6 does not** (Phase 1
+notes every pad is already in use), so C6 doors need an I/O expander or a board
+revision. That constraint should drive the next PCB spin.
+
+**Firmware:**
+
+- Two new `EventLog::Type` values, `EVT_DOOR_FORCED` and `EVT_DOOR_HELD`. The
+  enum is append-only by design, so the 40-byte record format does not change
+  and older spool files stay readable.
+- **Door forced** — contact opens with no grant and no exit press inside a short
+  window. This is the genuine security event.
+- **Door held open** — still open N seconds after the relay dropped. Usually
+  operational (a delivery, a propped door) rather than malicious, but it is what
+  makes a door-forced signal trustworthy by ruling out the benign case.
+- Both are local decisions on local state, so they work with no network — the
+  same rule as every other decision in this design.
+
+**Reporting:** door-forced belongs on the fleet-health surface, not buried in an
+event list. It also sharpens the *unattributed exits* report in Phase 5: with a
+contact fitted, a forced entry becomes distinguishable from a legitimate exit.
 
 ---
 
