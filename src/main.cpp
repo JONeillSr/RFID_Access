@@ -56,6 +56,7 @@
 #include "WiFiManager.h"
 #include "Events.h"
 #include "AccessControl.h"
+#include "EventLog.h"
 #include "WebHandlers.h"
 #include "DeviceSettings.h"
 #include "DeviceIdentity.h"
@@ -309,6 +310,7 @@ void accessTask(void* pv) {
                 digitalWrite(PIN_BUZZER, LOW);
                 relayGrantedNonBlocking();
                 webService.log("[access] EXIT button - door released");
+                eventLog.append(EventLog::EVT_EXIT, EventLog::R_EXIT_BUTTON, true, "");
                 oledShowResult(true, "Exit button", "Door released");
                 continue;
             }
@@ -419,6 +421,16 @@ void setup() {
 
     // -- Access-control state (allow-list + unlock schedule from NVS) --
     acInit();
+
+    // Durable event spool. After acInit() so a failure here cannot stop the
+    // roster loading -- the door must decide correctly even if it cannot record.
+    if (!eventLog.begin()) {
+        webService.log("[evt] spool unavailable - events will NOT be recorded");
+    } else {
+        webService.log(String("[evt] spool ready: boot #") + eventLog.bootId() +
+                       ", " + eventLog.pending() + " event(s) awaiting upload");
+        eventLog.append(EventLog::EVT_BOOT, EventLog::R_NONE, false, "");
+    }
     unlockSchedule.begin();
     appEventQueue = xQueueCreate(10, sizeof(AppEvent));
 
@@ -543,6 +555,17 @@ void setup() {
             } else {
                 body += "Roster:   " + String(rb) + " B on disk (saved OK)\n";
             }
+
+            // Event spool. `pending` is the count the backend has not yet
+            // confirmed; nothing acks until Phase 3's sync client exists, so it
+            // only grows for now — and it MUST survive a reboot, which is the
+            // whole difference between this and the RAM-only tapLog below.
+            body += "Events:   " + String(eventLog.pending()) + " pending, " +
+                    String(eventLog.bytesOnDisk()) + " B on disk, boot #" +
+                    String(eventLog.bootId());
+            if (eventLog.overflowed()) body += "  [OVERFLOWED - oldest discarded]";
+            body += "\n";
+
             LOCK();
             if (logCount > 0) {
                 int last = (logHead - 1 + LOG_SIZE) % LOG_SIZE;
@@ -594,11 +617,13 @@ void loop() {
             digitalWrite(PIN_RELAY, HIGH);          // hold the door open
             ledGranted(); paxton.ledGranted();
             webService.log("[sched] unlock window started - door held open");
+            eventLog.append(EventLog::EVT_SCHED_ON, EventLog::R_SCHEDULE, true, "");
         } else {
             relayOffAt = 0;
             digitalWrite(PIN_RELAY, LOW);           // window over: lock
             ledOff(); paxton.ledIdle();
             webService.log("[sched] unlock window ended - door locked");
+            eventLog.append(EventLog::EVT_SCHED_OFF, EventLog::R_SCHEDULE, false, "");
         }
         oledShowIdle();
     }
