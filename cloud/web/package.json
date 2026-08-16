@@ -1,0 +1,22 @@
+{
+  "name": "rfid-access-web",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "deploy": "npm run build && swa deploy ./dist --env production"
+  },
+  "dependencies": {
+    "@azure/msal-browser": "^3.28.1",
+    "preact": "^10.24.3",
+    "wouter-preact": "^3.3.5"
+  },
+  "devDependencies": {
+    "@preact/preset-vite": "^2.9.1",
+    "@azure/static-web-apps-cli": "^2.0.2",
+    "vite": "^5.4.10"
+  }
+}

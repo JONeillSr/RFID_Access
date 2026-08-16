@@ -1,0 +1,94 @@
+/* Brand tokens in one place, so rebranding is editing this block. */
+:root {
+  /* --- JT Custom Trailers palette, sampled from the logo -------------------
+     Rebranding starts and ends in this block. The blue is the wordmark, the red
+     is the swoosh; both are used with their natural semantics -- blue for
+     identity and healthy state, red for things that need attention -- so the
+     interface reads as branded rather than merely recoloured. */
+  --brand-blue:#29abe2;
+  --brand-blue-dim:#1b7fa8;
+  --brand-red:#e4322b;
+  --brand-ink:#22282e;
+
+  --bg:#0f1419; --panel:#161c24; --line:#2a3645; --raised:#1e2632;
+  --text:#dbe4ee; --muted:#8aa0b4;
+
+  --accent:var(--brand-blue); --accent-bg:#12303f;
+  --warn:#e0a458;             --warn-bg:#33291a;
+  --bad:var(--brand-red);     --bad-bg:#331d1a;
+
+  --radius:8px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:15px/1.5 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+a{color:var(--accent)}
+
+header{display:flex;align-items:center;gap:16px;padding:14px 22px;
+  background:var(--panel);border-bottom:1px solid var(--line)}
+header h1{font-size:17px;margin:0;font-weight:600}
+.spacer{flex:1}
+.who{color:var(--muted);font-size:13px}
+
+nav{display:flex;gap:4px;padding:10px 22px;border-bottom:1px solid var(--line)}
+nav a{background:none;border:0;color:var(--muted);cursor:pointer;padding:7px 14px;
+  border-radius:6px;font-size:14px;text-decoration:none}
+nav a:hover{color:var(--text);background:var(--raised)}
+nav a.active{color:var(--accent);background:var(--accent-bg)}
+
+main{padding:22px;max-width:1150px}
+h2{font-size:20px;margin:0 0 16px;font-weight:600}
+h3{font-size:15px;margin:0 0 8px;font-weight:600}
+
+table{width:100%;border-collapse:collapse;margin-bottom:22px}
+th{text-align:left;font-size:12px;text-transform:uppercase;letter-spacing:.04em;
+  color:var(--muted);font-weight:600;padding:8px 10px;border-bottom:1px solid var(--line)}
+td{padding:10px;border-bottom:1px solid var(--raised);vertical-align:top}
+code{background:var(--raised);padding:1px 5px;border-radius:4px;font-size:13px}
+
+.muted{color:var(--muted);font-size:13px}
+.bad{color:var(--bad)}
+.pill{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;
+  background:var(--raised);color:var(--muted);margin-left:6px}
+.pill.ok{background:var(--accent-bg);color:var(--accent)}
+.pill.warn{background:var(--warn-bg);color:var(--warn)}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+  padding:16px;margin-bottom:20px}
+.card>*{margin-right:8px}
+.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));
+  margin-bottom:22px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+.tile .n{font-size:28px;font-weight:600;line-height:1.1}
+.tile .l{color:var(--muted);font-size:13px;margin-top:4px}
+.tile.alert{border-color:var(--warn)}
+.tile.alert .n{color:var(--warn)}
+
+input,select{background:var(--bg);color:var(--text);border:1px solid var(--line);
+  border-radius:6px;padding:8px 10px;font-size:14px}
+button{background:var(--raised);color:var(--text);border:1px solid var(--line);
+  border-radius:6px;padding:8px 14px;font-size:14px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button.primary{background:#2563eb;color:#fff;border:0;font-weight:600}
+button.primary:hover{background:#1d4fd8}
+
+.code-out{font:22px ui-monospace,Consolas,monospace;letter-spacing:.12em;
+  color:var(--accent);margin-top:12px}
+.status{padding:10px 22px;font-size:14px}
+.status.ok{background:var(--accent-bg);color:var(--accent)}
+.status.warn{background:var(--warn-bg);color:var(--warn)}
+.status.error{background:var(--bad-bg);color:var(--bad)}
+.centered{max-width:460px;margin:90px auto;text-align:center}
+
+/* --- brand header / footer ------------------------------------------------ */
+header .logo{height:34px;width:auto;display:block}
+header .brand{display:flex;align-items:center;gap:12px;min-width:0}
+header .brand .names{line-height:1.2;min-width:0}
+header .brand .co{font-size:15px;font-weight:600;white-space:nowrap}
+header .brand .pd{font-size:12px;color:var(--muted)}
+button.primary{background:var(--brand-blue);color:#06222e}
+button.primary:hover{background:var(--brand-blue-dim);color:#fff}
+footer{border-top:1px solid var(--line);margin-top:40px;padding:18px 22px;
+  color:var(--muted);font-size:12.5px;display:flex;gap:18px;flex-wrap:wrap}
+footer .sep{color:var(--line)}
+.centered .logo{height:64px;margin-bottom:18px}

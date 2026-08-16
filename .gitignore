@@ -59,6 +59,8 @@ door-backup-*/
 # only these local files carry them.
 cloud/infra/deploy.local.ps1
 cloud/infra/entra.local.json
+# Built web bundle: config.js has real tenant/client IDs substituted in.
+cloud/web/dist/
 cloud/infra/*.parameters.json
 !cloud/infra/*.parameters.example.json
 .azure/
@@ -91,3 +93,9 @@ deploy.zip
 __MACOSX/
 .DS_Store
 Thumbs.db
+
+# Web app: build output, and the env file carrying tenant/client identifiers.
+cloud/web/dist/
+cloud/web/.env.local
+cloud/web/.env
+!cloud/web/.env.example

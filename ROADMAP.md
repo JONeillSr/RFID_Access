@@ -494,6 +494,79 @@ revision. That constraint should drive the next PCB spin.
 event list. It also sharpens the *unattributed exits* report in Phase 5: with a
 contact fitted, a forced entry becomes distinguishable from a legitimate exit.
 
+## Phase 7 — Multi-customer: one deployment per customer tenant
+
+**Decided 2026-08-16.** This is a product, and every deployment lives in the
+*customer's own Entra tenant and subscription* — not a shared instance, and not
+even separate resource groups in one tenant.
+
+### Why isolation is physical, not logical
+
+A cross-customer leak in an access-control system means someone opening another
+company's doors. With a deployment per tenant, that is not a bug you can write:
+the other customer's data is in a different subscription, behind a different
+identity boundary. The alternative — one instance with `WHERE tenantId = …` in
+every query — has to be correct in every query, forever, and a single omission is
+catastrophic and silent.
+
+Three things fall out for free:
+
+- **Identity.** Each customer's staff already sign in with their own work
+  accounts. A shared instance would need a multi-tenant app registration and
+  cross-tenant consent; per-tenant needs neither.
+- **Billing and data residency** are the customer's, which is usually what they
+  want to hear.
+- **Blast radius.** A bad firmware publish, a bad roster, a bad deploy affects
+  one customer.
+
+Cost is not the obstacle: the whole footprint sits inside free tiers (Flex
+Consumption grant, SWA Free, a few cents of Table Storage), so customer number
+two costs roughly what customer number one does.
+
+### ⚠️ The firmware consequence
+
+`CLOUD_HOST` is a `#define` in `src/main.cpp`. One backend per customer means
+either a firmware build per customer — which multiplies the per-board OTA matrix
+by the customer count and makes images non-interchangeable — or making the host
+**runtime configuration**.
+
+It must become runtime configuration:
+
+- Store it in `DeviceSettings` alongside the device key, set at `/setup` or
+  returned by `/api/v1/enroll` during pairing.
+- Then one image serves every customer, and `publish-fw` stays per board rather
+  than per board *per customer*.
+- The TLS anchors need no change while every backend is `*.azurewebsites.net`;
+  a customer wanting a custom domain on the *API* would need its chain checked
+  against `lib/CloudSync/certs/`.
+
+Do this **before** the second customer exists. Retrofitting it means reflashing
+the first one.
+
+### Provisioning
+
+The Bicep is already parameterised (`baseName`, `storageName`), so this is mostly
+a script that takes a customer name and stands up, in their tenant:
+
+1. Resource group, storage, tables, Function App, SWA, Application Insights.
+2. Entra app registration with the three app roles, plus the three security
+   groups, plus the role assignments.
+3. `.env.local` and `branding.js` for their bundle; build and deploy the web app.
+4. Custom domain and its CNAME, then redirect URIs, CORS and CSP for that origin
+   — all four together, or sign-in half-works in a way that is hard to diagnose.
+5. First firmware publish per board type they use.
+
+Turns "onboard a customer" from a two-hour checklist into a command, and the
+checklist is where the mistakes live. Roughly a day's work.
+
+### What this settles about branding
+
+Per-deployment builds mean **build-time branding is already correct** — each
+customer's bundle is built with their `branding.js` and palette. A runtime
+branding admin page buys exactly one thing: letting the customer change it
+without involving you. Worth having as self-service eventually; not
+architecture, and explicitly not a prerequisite.
+
 ---
 
 ## Files

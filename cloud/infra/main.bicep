@@ -287,6 +287,39 @@ resource blobRole 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Static Web App: hosts the admin UI.
+//
+// FREE tier, and static hosting ONLY -- no linked backend, no managed API. The
+// browser calls the Function App directly with an Entra bearer token that the
+// API verifies cryptographically. That choice is deliberate: SWA's linked-backend
+// mode injects an x-ms-client-principal header the API would have to TRUST, and
+// that trust only holds while every request arrives through SWA. The Function App
+// is on a public hostname, so a forged header would otherwise grant Admin to
+// anyone who knows the URL. Verifying a signature removes the assumption
+// entirely -- and costs nothing, since linked backends need Standard tier.
+//
+// Consequence: the SPA is a cross-origin caller, so the Function App needs CORS
+// configured for this hostname.
+// ---------------------------------------------------------------------------
+
+resource swa 'Microsoft.Web/staticSites@2023-12-01' = {
+  name: '${baseName}-swa'
+  location: location
+  sku: {
+    name: 'Free'
+    tier: 'Free'
+  }
+  properties: {
+    // No repository is linked: content is pushed with the CLI rather than built
+    // from a git integration, so there is no deployment token in any pipeline.
+    allowConfigFileUpdates: true
+  }
+}
+
+output staticWebAppName string = swa.name
+output staticWebAppHost string = swa.properties.defaultHostname
+
 output functionAppName string = functionApp.name
 output functionAppHost string = functionApp.properties.defaultHostName
 output storageAccount string = storage.name
