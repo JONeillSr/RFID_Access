@@ -10,6 +10,18 @@
     },
     "retentionDays": {
       "value": 30
+    },
+    "entraTenantId": {
+      "value": "00000000-0000-0000-0000-000000000000"
+    },
+    "entraClientId": {
+      "value": "00000000-0000-0000-0000-000000000000"
+    },
+    "allowedOrigins": {
+      "value": [
+        "https://access.example.com",
+        "http://localhost:5173"
+      ]
     }
   }
 }

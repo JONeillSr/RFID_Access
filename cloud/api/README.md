@@ -13,9 +13,66 @@ Azure Functions backend for the door fleet. TypeScript, Node 24, Flex Consumptio
 | `POST /api/v1/enroll` | short-lived pairing code | One-time device pairing; returns the long-lived device key. |
 | `GET /api/v1/firmware` | `x-device-key` + `x-device-id` | Serves the image for the calling door's board. **No board parameter** — the board comes from the authenticated door's record, so a device cannot request another variant's image. |
 
-Both are `authLevel: anonymous` on purpose: devices authenticate with their own
+These are `authLevel: anonymous` on purpose: devices authenticate with their own
 per-door key, not a shared Functions key that would be identical across the
 fleet and unrevocable per device.
+
+### Admin surface
+
+Everything under `v1/admin/` is called by the web app with an Entra bearer token.
+
+Each route is one function that dispatches on method, with the role checked
+**per method** — so `GET` and `DELETE` on the same path need different roles.
+
+| Route | GET | POST | DELETE |
+|---|---|---|---|
+| `v1/admin/people` | Viewer | Operator | Admin |
+| `v1/admin/credentials` | Viewer | Operator | Operator |
+| `v1/admin/groups` | Viewer | Admin | Admin |
+| `v1/admin/doors` | Viewer | Admin | — |
+| `v1/admin/doors/roster` | Viewer | — | — |
+| `v1/admin/doors/pairing-code` | — | Operator | — |
+| `v1/admin/reports/{person,door,unknown,unattributed-exits}` | Viewer | — | — |
+
+`doors/roster` returns the effective roster a given door would receive — the
+group intersection resolved, which is the quickest way to answer "why can this
+person not open that door?" without reading the device.
+
+**The `v1/` prefix on admin routes is not cosmetic.** `admin` is a *reserved
+route prefix* in the Azure Functions host — routes beginning `admin/` are
+swallowed by the host's own management endpoints and return 404 no matter how
+correctly the function is registered. Nothing warns you; the function appears in
+the portal and simply never receives a request. Do not "tidy" these to `admin/*`.
+
+## Admin authorization
+
+The web app sends `Authorization: Bearer <token>` and `adminAuth.ts` verifies the
+signature against Entra's JWKS, plus issuer, audience and expiry. Roles arrive in
+the `roles` claim, populated by Entra from app-role assignments on the security
+groups.
+
+The earlier design trusted an `x-ms-client-principal` header injected by Static
+Web Apps. **That was exploitable**: the Function App has a public hostname, so
+anyone who knew the URL could send that header themselves and be an Admin. It was
+demonstrated against this API with a single `curl`. If you are tempted back to
+header trust because it is less code, that is why it is not there.
+
+Two settings must exist on the Function App or **every admin call fails closed**
+with `401 missing or invalid token`:
+
+| Setting | Purpose |
+|---|---|
+| `ENTRA_TENANT_ID` | Which tenant's JWKS and issuer to trust |
+| `ENTRA_CLIENT_ID` | Expected audience |
+
+Both come from Bicep parameters, **not** `az functionapp config appsettings set`
+— see the warning in `../infra/README.md`. Failing closed on missing config is
+deliberate: an unconfigured deployment refuses everyone rather than accepting
+unverified tokens.
+
+Note that `jose` is loaded with a cached dynamic `import()`. It is ESM-only and
+this package emits CommonJS for the Functions host, so a static import will not
+compile.
 
 ## Local development
 

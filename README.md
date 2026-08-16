@@ -390,9 +390,13 @@ tools/                  operational scripts
                         re-extract and verify an anchor before trusting it)
 cloud/                  Azure backend (TypeScript, deployed separately)
   shared/types.ts       contract shared by the API and the admin web app
-  api/                  Azure Functions: /api/v1/sync, /api/v1/enroll
-  infra/                Bicep: storage, tables, Function App, observability
+  api/                  Azure Functions: device sync/enroll + the admin API
+  web/                  admin web app (Preact + Vite) on Static Web Apps
+  infra/                Bicep: storage, tables, Function App, SWA, observability
 ```
+
+Each of those three has its own README covering deployment and the decisions
+behind it; the admin app is live at `https://access.jtcustomtrailers.com`.
 
 `ROADMAP.md` tracks the multi-door / cloud programme: what is built, what is
 next, and — more usefully — why each decision went the way it did.

@@ -84,6 +84,7 @@ idempotent, so re-running after the permission is granted completes the rest.
 | App Service Plan | `JTC-prod-rfidaccess-eastus2-plan` | **FC1 Flex Consumption** |
 | Application Insights | `JTC-prod-rfidaccess-eastus2-appi` | |
 | Log Analytics | `JTC-prod-rfidaccess-eastus2-log` | 30-day retention |
+| Static Web App | `JTC-prod-rfidaccess-eastus2-swa` | **Free** tier; hosts the admin app |
 
 Endpoint: `https://jtc-prod-rfidaccess-eastus2-func.azurewebsites.net/api/v1/`
 
@@ -99,7 +100,6 @@ app's managed identity rather than a storage account key — which is what makes
 key-less account. Storage sits in the same region as compute deliberately: the
 sync endpoint touches storage on every request, so a cross-region hop would add
 ~15 ms to a path that runs twice a minute per door.
-
 
 **No storage account keys anywhere.** `allowSharedKeyAccess` is `false`, and the
 Function App reaches storage through a system-assigned managed identity granted
@@ -130,7 +130,14 @@ the source of truth for the role definitions.
 |---|---|
 | `Viewer` | View doors, people, credentials and reports; export them. No writes. |
 | `Operator` | Everything above, plus enrol and label fobs, assign them to people, deactivate a lost fob, add or remove people from **existing** groups, and issue pairing codes. |
-| `Admin` | Everything above, plus create/delete groups, change which groups a door honours, edit door config and schedules, publish firmware, set `fwHold`, and delete people or credentials. |
+| `Admin` | Everything above, plus create/delete groups, change which groups a door honours, edit door config and schedules, publish firmware, set `fwHold`, and delete people. |
+
+> **Known deviation:** deleting a *credential* is currently **Operator**, not
+> Admin (`DELETE v1/admin/credentials` in `../api/src/functions/admin.ts`).
+> Deleting people is correctly Admin. Arguably fine — retiring a fob is squarely
+> "working within the model" — but it is not what this table originally said, and
+> it removes the audit trail rather than deactivating. Worth settling explicitly
+> before the write UI exposes a delete button.
 
 The Operator boundary is deliberate: an Operator works **within** the access
 model, an Admin **redefines** it. Operators can grant a person access to doors
@@ -167,11 +174,73 @@ Assigning app roles to groups requires Entra ID **P1 or above**. On a free
 tenant the fallback is to emit a `groups` claim and map group object IDs to
 roles in a `rolesSource` function.
 
-### Still to do
+### Redirect URIs
 
-The **redirect URI** cannot be set until the Static Web App exists — it is
-`https://<swa-hostname>/.auth/login/aad/callback`. Add it to the registration
-once the SWA is deployed, or sign-in will fail with a reply-URL mismatch.
+Registered as **SPA** redirect URIs (not Web), because the admin app uses the
+authorization-code flow with PKCE and holds no client secret:
+
+- `https://access.jtcustomtrailers.com`
+- the SWA default `*.azurestaticapps.net` hostname
+- `http://localhost:5173` — local development
+
+These are the app's **own origins**, not `/.auth/login/aad/callback`. That
+callback path belongs to Static Web Apps' built-in authentication, which this
+system deliberately does not use (see the CORS section below). Registering the
+wrong style fails at sign-in with a reply-URL mismatch.
+
+A redirect URI registered under the **Web** platform rather than **SPA** fails
+differently and more confusingly: sign-in appears to work, then the token request
+is rejected because Entra expects a client secret for a confidential client.
+
+## ⚠️ App settings are declared here, and only here
+
+`siteConfig.appSettings` is **authoritative**. A deployment replaces the entire
+collection, so anything set out-of-band with `az functionapp config appsettings
+set` is silently erased by the next `az deployment group create`.
+
+This has already broken production once: `ENTRA_TENANT_ID` and `ENTRA_CLIENT_ID`
+were set by hand, worked fine, and were wiped by an unrelated redeploy that added
+the Static Web App. Sign-in still succeeded — the failure surfaced only as
+`missing or invalid token` on every API call afterwards, because the API cannot
+verify a token when it does not know which tenant to trust.
+
+Nothing warns you. `what-if` shows the setting being removed, but among many
+other changes.
+
+**So: every setting the app needs must be a parameter in `main.bicep`**, with
+values in the gitignored `main.parameters.json`. If you find yourself reaching
+for `appsettings set` to fix something quickly, that fix has an expiry date.
+
+## CORS
+
+The admin app is served from a different origin than the API, so the Function App
+must name the origins allowed to call it. The `allowedOrigins` parameter carries
+them:
+
+```json
+"allowedOrigins": { "value": [
+  "https://access.jtcustomtrailers.com",
+  "https://<swa-default>.azurestaticapps.net",
+  "http://localhost:5173"
+]}
+```
+
+This is a consequence of a deliberate choice: the browser calls the Function App
+**directly** with a bearer token the API verifies, rather than being proxied
+through Static Web Apps' linked-backend feature. Proxying would make everything
+same-origin and remove the need for CORS entirely — but it would also mean the
+API trusting an injected identity header, which is forgeable against a public
+hostname (see `../api/README.md`). Cross-origin configuration is the price of
+verifying signatures instead of trusting a proxy. It also keeps SWA on **Free**,
+since linked backends require Standard.
+
+CORS is browser-enforced and is **not** a security control: `curl` ignores it
+entirely. Authorization is the token check. A missing origin here shows up as
+what looks like a network failure in the browser console, not a permission error
+— which is why it reads as "the API is down".
+
+Adding a customer domain means updating this list, the SPA redirect URIs, and
+`connect-src` in the web app's `staticwebapp.config.json` together.
 
 ## Cost
 

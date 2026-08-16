@@ -45,6 +45,28 @@ a minute per door, for no benefit.
 ''')
 param location string = resourceGroup().location
 
+@description('''
+Entra tenant ID the admin API validates tokens against.
+
+Supplied as a parameter, not hardcoded: this template is in a public repo, and
+while a tenant id is not a secret it names exactly which tenant to target. Lives
+in main.parameters.json, which is gitignored.
+''')
+param entraTenantId string
+
+@description('Application (client) ID of the admin app registration. Becomes the expected token audience.')
+param entraClientId string
+
+@description('''
+Origins allowed to call the API from a browser.
+
+The admin app is a cross-origin caller by design -- it holds an Entra token and
+talks to the Function App directly rather than being proxied by Static Web Apps.
+Declared here so a new customer deployment gets it from the template rather than
+a remembered CLI step.
+''')
+param allowedOrigins array
+
 @description('Retention for logs and traces. 30 days is ample for fleet debugging.')
 param retentionDays int = 30
 
@@ -225,6 +247,12 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
       minTlsVersion: '1.2'
       ftpsState: 'Disabled'
       http20Enabled: true
+      cors: {
+        allowedOrigins: allowedOrigins
+        // The API authenticates with a bearer token, never a cookie, so there is
+        // no reason to allow credentialed cross-origin requests.
+        supportCredentials: false
+      }
       appSettings: [
         {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
@@ -247,6 +275,19 @@ resource functionApp 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'ARCHIVE_CONTAINER'
           value: archiveContainer.name
+        }
+        // ⚠️ EVERY app setting must be declared here. siteConfig.appSettings is
+        // AUTHORITATIVE: a deployment replaces the whole collection, so anything
+        // set out-of-band with `az functionapp config appsettings set` is silently
+        // erased on the next `az deployment group create`. That is exactly how
+        // these two went missing and every admin request started returning 401.
+        {
+          name: 'ENTRA_TENANT_ID'
+          value: entraTenantId
+        }
+        {
+          name: 'ENTRA_CLIENT_ID'
+          value: entraClientId
         }
       ]
     }

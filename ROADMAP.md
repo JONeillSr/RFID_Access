@@ -6,9 +6,9 @@
 by construction:
 
 1. **Identity is compile-time.** `MDNS_HOSTNAME` is a `#define` in
-   [src/main.cpp:68](../../../../PlatformIO/Projects/RFID_Access/src/main.cpp#L68), so every door needs its own firmware build.
+   [src/main.cpp:68](src/main.cpp#L68), so every door needs its own firmware build.
 2. **The roster is local and tiny.** `Entry allowList[30]` in
-   [lib/AccessControl/AccessControl.h:13](../../../../PlatformIO/Projects/RFID_Access/lib/AccessControl/AccessControl.h#L13), persisted as a JSON blob in NVS.
+   [lib/AccessControl/AccessControl.h:13](lib/AccessControl/AccessControl.h#L13), persisted as a JSON blob in NVS.
    Enrolling a fob means visiting each door's web page.
 3. **The audit trail is volatile.** `tapLog[20]` is a RAM ring, lost on every
    reboot, and there is no notion of *which* door a read happened at.
@@ -82,7 +82,7 @@ flag.
 - **New `lib/DeviceIdentity/`** — `deviceId` derived from the efuse MAC
   (e.g. `rfid-a1b2c3`), immutable and unique. `doorName` and `siteName` read from
   `DeviceSettings` (reuse the existing generic `getString`/`setString` accessors in
-  [lib/DeviceSettings/DeviceSettings.h:63](../../../../PlatformIO/Projects/RFID_Access/lib/DeviceSettings/DeviceSettings.h#L63) — no new store).
+  [lib/DeviceSettings/DeviceSettings.h:63](lib/DeviceSettings/DeviceSettings.h#L63) — no new store).
 - **Delete `MDNS_HOSTNAME`.** ⚠️ *Blocking today:* every unit currently claims
   `rfid-door.local`, so the second door onward collides — whichever responds first
   wins, intermittently, and you can't reliably reach a specific unit. Hostname
@@ -91,7 +91,7 @@ flag.
   renameable to `rfid-front`/`rfid-shop` at `/setup`. Fix this first — it's a
   prerequisite for bench-testing anything else with two boards.
 - **Enable the existing `/setup` page.** `WebService::enableSetup()` and
-  `setSetupFieldsProvider()` are already built ([WebService.h:100](../../../../PlatformIO/Projects/RFID_Access/lib/WebService/WebService.h#L100)) but
+  `setSetupFieldsProvider()` are already built ([WebService.h:100](lib/WebService/WebService.h#L100)) but
   RFID_Access never calls them. Wire them up and inject door name, site, and the
   cloud pairing field (Phase 4).
 
@@ -112,7 +112,7 @@ flag.
   enrollment still works: the raw number exists transiently at tap time, is shown
   in the UI, and is uploaded with the deny event so the central UI can enroll it.
 - **Atomic swap on sync**: build the new roster fully, then swap the active
-  pointer under `dataMutex` ([AccessControl.h:20](../../../../PlatformIO/Projects/RFID_Access/lib/AccessControl/AccessControl.h#L20)). Never mutate in place —
+  pointer under `dataMutex` ([AccessControl.h:20](lib/AccessControl/AccessControl.h#L20)). Never mutate in place —
   a tap arriving mid-sync must see either the old list or the new one.
 - Tracks `rosterRev` so sync can skip unchanged payloads.
 
@@ -124,13 +124,13 @@ flag.
 - **Timestamps before NTP**: every record stores `uptimeMs`, plus `epoch` if the
   clock is valid. At upload, unresolved records are converted using the batch's
   `bootEpoch` and flagged `approx`. This matters because `UnlockSchedule::timeValid()`
-  ([UnlockSchedule.h:36](../../../../PlatformIO/Projects/RFID_Access/lib/UnlockSchedule/UnlockSchedule.h#L36)) is often false for the first seconds after boot.
+  ([UnlockSchedule.h:36](lib/UnlockSchedule/UnlockSchedule.h#L36)) is often false for the first seconds after boot.
 - Records: tap (with raw credential + reason code), exit-button, schedule
   transition, boot, config change, sync failure.
 - Read cursor persisted; records retained until the server acks. Ring-overwrites
   oldest when full.
 
-**Rewire `AccessControl::acProcessEvent`** ([AccessControl.cpp:87](../../../../PlatformIO/Projects/RFID_Access/lib/AccessControl/AccessControl.cpp#L87)) to query
+**Rewire `AccessControl::acProcessEvent`** ([AccessControl.cpp:87](lib/AccessControl/AccessControl.cpp#L87)) to query
 `Roster` and append to `EventLog`. Keep `tapLog` as-is — it backs the existing
 `/api/taps` handler and the `/status` "Last tap" line, and is cheap.
 
@@ -379,7 +379,7 @@ that a unit which cannot be reached physically has no recovery path if an image
 fails to boot (Arduino-ESP32 does not enable automatic OTA rollback by default),
 which is why staged rollout and the per-board hard gate below matter. **Never update while the relay is
 energised or a schedule-unlock window is active** — check `relayOffAt` and
-`gSchedActive` in [main.cpp:93-101](../../../../PlatformIO/Projects/RFID_Access/src/main.cpp#L93-L101). Stagger across the fleet.
+`gSchedActive` in [main.cpp:93-101](src/main.cpp#L93-L101). Stagger across the fleet.
 
 > ⚠️ **Firmware is per board type, not per fleet.** Doors may be built on
 > different ESP32 variants (C6, classic DevKit, C3, S3) — that is why
@@ -401,10 +401,34 @@ energised or a schedule-unlock window is active** — check `relayOffAt` and
 > The admin UI's Doors page should therefore show board type per door, and the
 > rollout screen should be per board.
 
-## Phase 5 — Admin UI
+## Phase 5 — Admin UI 🟡 READ SIDE LIVE
 
-Azure Static Web Apps (free tier) with built-in Entra ID auth — your tenant gives
-SSO with zero auth code — and the Function App linked as its managed API.
+Live at **`https://access.jtcustomtrailers.com`** (Preact + Vite on Static Web
+Apps, Free tier). Signed in with Entra ID; dashboard, doors, people and reports
+all render real fleet data.
+
+**Done:** sign-in and role separation, dashboard, door list with sync health,
+people, all four reports, custom domain with certificate, branding.
+**Remaining:** every **write**. There are no forms yet — enrolling a fob, adding
+a person, editing groups or pushing door config still happen through `seed.json`
+and the CLI tools. Until those exist, the on-device read-only lockout below must
+stay unenforced, or a paired door could not be administered at all.
+
+> **The auth design changed during implementation.** The original plan here was
+> SWA's built-in Entra auth with the Function App as a *linked backend* — no auth
+> code at all. That was built, and then found to be **exploitable**: a linked
+> backend trusts an `x-ms-client-principal` header injected by SWA, but the
+> Function App has its own public hostname, so anyone who knew the URL could send
+> that header and become Admin. One `curl` demonstrated it.
+>
+> It now uses MSAL in the browser and cryptographic token verification in the
+> API. The cost is real — a build step, CORS configuration, and roughly 150 lines
+> of auth code that the linked-backend design would not have needed. The benefit
+> is that authorization no longer depends on requests arriving by a particular
+> route. It also keeps SWA on **Free**, since linked backends need Standard.
+>
+> The general lesson, worth carrying into Phase 7: *"the platform handles auth"*
+> is only true while the platform is the only way in.
 
 This is **the** place doors are configured. Anything currently set per-unit —
 door name, site, groups, unlock schedule, relay hold time, result-screen hold —
@@ -433,7 +457,7 @@ block. Editing a door in the web app is the normal path; walking to it is not.
     door becomes distinguishable from a legitimate exit.
   - Each filterable by granted/denied and exportable to CSV.
 - **Unknown taps → one-click enroll** — the central version of today's
-  `lastUnknownUid` flow ([AccessControl.cpp:100](../../../../PlatformIO/Projects/RFID_Access/lib/AccessControl/AccessControl.cpp#L100)); pick the card, attach it to a
+  `lastUnknownUid` flow ([AccessControl.cpp:100](lib/AccessControl/AccessControl.cpp#L100)); pick the card, attach it to a
   new or existing person, done.
 - **Fleet health** — every door's last-seen, so a unit that stopped syncing is
   visible at a glance rather than discovered during an incident.
@@ -443,7 +467,7 @@ block. Editing a door in the web app is the normal path; walking to it is not.
 `/status`, `/webserial`, and `/update` stay exactly as they are — diagnostics and
 OTA must keep working when the cloud doesn't. But **`/config`'s write endpoints
 are disabled while a door is paired**: `/api/add`, `/api/rename`, `/api/remove`,
-and `POST /api/schedule` in [WebHandlers.cpp](../../../../PlatformIO/Projects/RFID_Access/lib/WebHandlers/WebHandlers.cpp) return `409 Conflict` with a
+and `POST /api/schedule` in [WebHandlers.cpp](lib/WebHandlers/WebHandlers.cpp) return `409 Conflict` with a
 pointer to the web app. The read endpoints (`/api/list`, `/api/taps`,
 `GET /api/schedule`) stay live, so a door still explains itself locally.
 
@@ -459,7 +483,7 @@ Unpaired devices keep full local CRUD, so a bench unit or a not-yet-paired door
 behaves exactly as today.
 
 Add sync state to the existing `setStatusProvider` block
-([main.cpp:396](../../../../PlatformIO/Projects/RFID_Access/src/main.cpp#L396)): last sync, roster rev, spool depth, pairing state.
+([main.cpp:396](src/main.cpp#L396)): last sync, roster rev, spool depth, pairing state.
 
 ## Phase 6 — Door position sensing (hardware-gated)
 
@@ -655,7 +679,7 @@ don't debug this on those).
     checks: meter the relay pin through several power cycles for spurious pulses, and
     confirm fail-secure still holds through a reboot. The partition-table change and
     the new boot-time filesystem mount both land before `setup()`'s relay-safing code
-    at [main.cpp:326](../../../../PlatformIO/Projects/RFID_Access/src/main.cpp#L326) — **verify that line still runs first**.
+    at [main.cpp:326](src/main.cpp#L326) — **verify that line still runs first**.
 14. **OTA safety** — trigger a central rollout while a schedule-unlock window is
     active. Confirm the device defers the update until the door relocks.
 15. **Per-board OTA** ⭐ — with a C6 door and a DevKit door both paired, publish a
@@ -667,3 +691,43 @@ don't debug this on those).
 16. **Cert failure** — point the device at a host with a bad chain. Confirm it fails
     closed *on sync only*, keeps granting on the cached roster, and says so loudly on
     `/status`.
+
+### 🔧 TODO: expose free heap on `/status`
+
+`/status` and `/status.txt` report filesystem, roster, spool and reader health but
+**not free heap**. That is the one number that would show a slow leak, and the
+place a leak is most likely is repeated *failed* TLS handshakes — a door that has
+been offline for hours retrying, which is exactly the state nobody is watching.
+
+Discovered during the staleness test of 2026-08-16: six hours of failed syncs
+could be observed in every respect *except* the one that would reveal a leak. The
+fallback signal is the boot counter, which only catches a leak large enough to be
+fatal within the test window — a slower one would look like a perfectly healthy
+run and then kill a door weeks later, in the field, with no diagnostic trail.
+
+Add to the status block: current free heap, **minimum free heap since boot**
+(`esp_get_minimum_free_heap_size()`), and largest free block. The minimum-since-
+boot figure matters most — it survives the transient spike that caused the
+trouble, so a door can be interrogated after the fact rather than needing to be
+caught in the act. Cheap: three numbers, no new state.
+
+While in there, the same case applies to `CloudSync`'s consecutive-failure count
+and current backoff interval — both exist in memory already and neither is
+visible, so "is this door backing off correctly or hammering?" currently needs a
+six-hour sampling harness to answer. That is far too much work for a question the
+device could simply answer.
+
+### Test log
+
+**#9 Offline** — in progress, started `2026-08-16T20:06:02Z`. Test Door 1
+(`rfid-275044`) firewalled outbound, LAN kept reachable so internals stay
+observable; Front Door left online as a control. Predictions recorded **before**
+observation (backoff settling at the 15-minute cap → ~28 failures at +6h, versus
+~720 if it hammered at 30s), so the result can falsify rather than merely
+illustrate. Cloud-side detection already confirmed: flagged `NOT CHECKING IN` at
+T0+11m, as designed.
+
+Note that the spool's **overflow** path is not reached by this test — 5000 records
+needs 5000 taps. That path drops the oldest event and is the only one that
+silently loses history, so it needs a separate test with a temporarily lowered cap
+rather than being taken on trust.
