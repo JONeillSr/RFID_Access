@@ -1,0 +1,26 @@
+[
+  {
+    "id": "b1e7c2a4-4f3d-4c8a-9e21-7d5f0a1b6c31",
+    "allowedMemberTypes": ["User"],
+    "displayName": "Viewer",
+    "value": "Viewer",
+    "description": "Read-only. Can view doors, people, credentials and reports, and export them. Cannot enrol a fob, change access, pair a device or publish firmware. Intended as the baseline role for anyone who needs to answer 'who went where' without being able to change who gets in.",
+    "isEnabled": true
+  },
+  {
+    "id": "c2f8d3b5-5a4e-4d9b-8f32-8e6a1b2c7d42",
+    "allowedMemberTypes": ["User"],
+    "displayName": "Operator",
+    "value": "Operator",
+    "description": "Day-to-day access administration: enrol and label fobs, assign them to people, deactivate a lost fob, add or remove people from existing groups, and issue device pairing codes. Cannot create or delete groups, change which groups a door honours, alter door config, or publish firmware -- the operations that redefine the access model rather than apply it.",
+    "isEnabled": true
+  },
+  {
+    "id": "d3a9e4c6-6b5f-4e0c-9043-9f7b2c3d8e53",
+    "allowedMemberTypes": ["User"],
+    "displayName": "Admin",
+    "value": "Admin",
+    "description": "Full control: everything an Operator can do, plus managing groups and door-to-group mappings, editing door configuration and schedules, publishing firmware, holding doors back from rollouts, and deleting people or credentials outright. Keep this membership small -- it is the role that can grant itself access to every door.",
+    "isEnabled": true
+  }
+]

@@ -28,6 +28,22 @@ is called.
 The remote log is a ring buffer fed by `log()`, shared by `/webserial` and the
 telnet console, and echoed to `Serial`. `log()` is safe to call from any task.
 
+### Timestamps
+
+Each entry stores a **UTC epoch**, not a formatted string, and is rendered in
+whatever timezone is set at the moment you view it — canonical storage, convert
+at the edges.
+
+That matters because the timezone is applied by `configTzTime()` *after* boot.
+Formatting at write time froze early lines in UTC while later ones were local, so
+a log could read `00:52:39` followed by `20:52:48` — time apparently running
+backwards partway down. Storing the epoch also means changing the timezone
+re-renders the whole buffer correctly rather than only affecting new lines.
+
+Lines written before the clock was trustworthy render as uptime (`+12s`) rather
+than an invented wall-clock time. The two forms are visually distinct so it is
+obvious which you are reading.
+
 ## Quick start
 
 ```cpp

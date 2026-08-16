@@ -58,6 +58,7 @@ door-backup-*/
 # templates are deliberately free of them (deployment scope supplies both), so
 # only these local files carry them.
 cloud/infra/deploy.local.ps1
+cloud/infra/entra.local.json
 cloud/infra/*.parameters.json
 !cloud/infra/*.parameters.example.json
 .azure/

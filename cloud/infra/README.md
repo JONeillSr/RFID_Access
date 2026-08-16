@@ -116,6 +116,63 @@ alphanumeric only, and globally unique across all of Azure. The full
 it is already in the resource group name. If `jtcprodrfidaccessst` is taken,
 change `storageName` in your parameters file; nothing else depends on it.
 
+## Entra ID: app registration and roles
+
+The admin web app authenticates against a single-tenant app registration named
+**JTC RFID Access**, with three app roles. Its identifiers live in
+`entra.local.json` (gitignored) — not secrets, but they name the tenant and app
+to target, so they stay out of a public repo. `app-roles.json` IS tracked: it is
+the source of truth for the role definitions.
+
+### Roles
+
+| Role | Can |
+|---|---|
+| `Viewer` | View doors, people, credentials and reports; export them. No writes. |
+| `Operator` | Everything above, plus enrol and label fobs, assign them to people, deactivate a lost fob, add or remove people from **existing** groups, and issue pairing codes. |
+| `Admin` | Everything above, plus create/delete groups, change which groups a door honours, edit door config and schedules, publish firmware, set `fwHold`, and delete people or credentials. |
+
+The Operator boundary is deliberate: an Operator works **within** the access
+model, an Admin **redefines** it. Operators can grant a person access to doors
+their group already opens; only an Admin can change which doors a group opens.
+
+### Roles come from group membership
+
+Tenant has Entra ID P2, so app roles are assigned to **security groups** rather
+than individual users — the roles then arrive in the token as a `roles` claim
+with no group-ID mapping needed in code, and "who is an admin?" is answered by
+looking at one group.
+
+| Group | Role |
+|---|---|
+| `JTC Access Control` | Viewer |
+| `JTC Access Control Operators` | Operator |
+| `JTC Access Control Admins` | Admin |
+
+A user in several groups receives several roles; the app takes the highest. So
+adding someone to Admins does **not** mean removing them from the base group.
+
+### Reproducing it
+
+```powershell
+az ad app create --display-name "JTC RFID Access" `
+  --sign-in-audience AzureADMyOrg --app-roles '@app-roles.json'
+az ad sp create --id <appId>
+
+# then, per group, POST to the service principal's appRoleAssignedTo:
+#   { principalId: <groupObjectId>, resourceId: <spObjectId>, appRoleId: <roleId> }
+```
+
+Assigning app roles to groups requires Entra ID **P1 or above**. On a free
+tenant the fallback is to emit a `groups` claim and map group object IDs to
+roles in a `rolesSource` function.
+
+### Still to do
+
+The **redirect URI** cannot be set until the Static Web App exists — it is
+`https://<swa-hostname>/.auth/login/aad/callback`. Add it to the registration
+once the SWA is deployed, or sign-in will fail with a reply-URL mismatch.
+
 ## Cost
 
 At roughly 20 doors syncing every 30 s (~86k executions/month) this sits inside

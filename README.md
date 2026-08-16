@@ -365,7 +365,13 @@ lib/                    reusable, application-agnostic libraries
   Roster/               LittleFS credential store: hash-keyed, CRC-checked,
                         atomic save, atomic wholesale replace for cloud sync
   EventLog/             durable append-only event spool held until the backend
-                        acknowledges it (taps, exit, schedule, boot)
+                        acknowledges it (taps, exit, schedule, boot, firmware)
+  CloudSync/            backend sync client + OTA: uploads spooled events,
+                        applies the roster/config the server returns, and takes
+                        firmware updates. Runs on its own task and is NEVER in
+                        the access decision path. Embeds its own TLS trust
+                        anchors (certs/ + RootCerts.h) -- an ESP32 has no system
+                        trust store.
   AccessControl/        access decision + recent-tap log (storage lives in Roster)
   Events/               app event types + queue (card-tap, exit-request)
   PaxtonReader/         Clock & Data / Wiegand reader driver + reader LEDs
@@ -379,6 +385,9 @@ tools/                  operational scripts
   backup-doors.ps1      snapshot a door's fobs + schedule before a reflash
   check_partitions.py   validate partitions_rfid.csv (incl. NVS preservation)
   check_roster_logic.py exercise Roster's ordering/lookup algorithms
+  gen_certs.py          regenerate lib/CloudSync/RootCerts.h from the PEMs in
+                        lib/CloudSync/certs/ (see that header for how to
+                        re-extract and verify an anchor before trusting it)
 cloud/                  Azure backend (TypeScript, deployed separately)
   shared/types.ts       contract shared by the API and the admin web app
   api/                  Azure Functions: /api/v1/sync, /api/v1/enroll
