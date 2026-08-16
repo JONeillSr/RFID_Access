@@ -401,18 +401,35 @@ energised or a schedule-unlock window is active** — check `relayOffAt` and
 > The admin UI's Doors page should therefore show board type per door, and the
 > rollout screen should be per board.
 
-## Phase 5 — Admin UI 🟡 READ SIDE LIVE
+## Phase 5 — Admin UI ✅ READ AND WRITE LIVE
 
 Live at **`https://access.jtcustomtrailers.com`** (Preact + Vite on Static Web
-Apps, Free tier). Signed in with Entra ID; dashboard, doors, people and reports
-all render real fleet data.
+Apps, Free tier). Signed in with Entra ID; dashboard, doors, people, groups and
+reports all render real fleet data, and the write surface is in.
 
 **Done:** sign-in and role separation, dashboard, door list with sync health,
-people, all four reports, custom domain with certificate, branding.
-**Remaining:** every **write**. There are no forms yet — enrolling a fob, adding
-a person, editing groups or pushing door config still happen through `seed.json`
-and the CLI tools. Until those exist, the on-device read-only lockout below must
-stay unenforced, or a paired door could not be administered at all.
+people, all four reports, custom domain with certificate, branding — plus:
+
+- **Enrol from unknown taps** — click a card on the dashboard and attach it to a
+  new or existing person. The number is carried across untouched, which removes
+  the most error-prone step in administering this system: retyping ten digits.
+  A mistyped-but-valid number produces a fob that silently opens nothing.
+- **People** — add, edit, group membership, active toggle, delete (Admin).
+- **Fobs** — label, assign, deactivate, delete.
+- **Groups** (Admin) — showing what each one actually connects, because a group
+  with no doors opens nothing and that is invisible if you only list names.
+- **Doors** (Admin) — name, site, groups, relay/result hold, firmware hold, and
+  a "who gets in?" roster preview answering *why can't X open this door*.
+
+Dialogs state the consequence before you commit: deactivating a fob says which
+doors are **not checking in** and will therefore keep accepting it. That gap is
+the system's sharpest edge and the UI now names it at the moment it matters.
+
+**Remaining:** the on-device read-only lockout described below is still not
+enforced — `/api/add` and friends stay live on paired doors. That was blocked on
+the write UI existing; it now does, so this is the next piece.
+
+`seed.json` remains useful for bulk import, but is no longer the only way in.
 
 > **The auth design changed during implementation.** The original plan here was
 > SWA's built-in Entra auth with the Function App as a *linked backend* — no auth
