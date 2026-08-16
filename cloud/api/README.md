@@ -27,7 +27,7 @@ Each route is one function that dispatches on method, with the role checked
 | Route | GET | POST | DELETE |
 |---|---|---|---|
 | `v1/admin/people` | Viewer | Operator | Admin |
-| `v1/admin/credentials` | Viewer | Operator | Operator |
+| `v1/admin/credentials` | Viewer | Operator | Admin |
 | `v1/admin/groups` | Viewer | Admin | Admin |
 | `v1/admin/doors` | Viewer | Admin | — |
 | `v1/admin/doors/roster` | Viewer | — | — |

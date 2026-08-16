@@ -181,11 +181,28 @@ app.http('adminCredentials', {
     if (isDenied(auth)) return auth.denied;
 
     if (req.method === 'DELETE') {
+      // Admin-only, for the same reason as deleting a person: it destroys
+      // attribution rather than merely revoking access.
+      //
+      // credentialIndex() resolves events against EVERY credential regardless of
+      // `active`, so a DEACTIVATED fob still names its holder on future taps --
+      // "Carl - DENIED" at 2am is exactly the record you want. Delete the row and
+      // that same tap resolves to nobody: it lands in the unknown-card feed and
+      // is offered up for enrolment, which is precisely backwards for a
+      // credential someone revoked on purpose.
+      //
+      // Nothing an Operator legitimately needs requires this. A mistyped number
+      // is fixed by editing it (credId is the key, so a corrected POST replaces
+      // it in place), a wrong assignment by reassigning personId, and a lost fob
+      // by deactivating -- which stops it just as fast and can be undone.
+      const adm = await requireRole(req, 'Admin');
+      if (isDenied(adm)) return adm.denied;
+
       const credId = req.query.get('credId');
       if (!credId) return bad('credId is required');
       await t('Credentials').deleteEntity('cred', credId);
       const rev = await bumpRosterRev();
-      ctx.log(`admin: ${actor(auth.principal)} deleted credential ${credId}, rev -> ${rev}`);
+      ctx.log(`admin: ${actor(adm.principal)} deleted credential ${credId}, rev -> ${rev}`);
       return ok({ deleted: credId, rosterRev: rev });
     }
 

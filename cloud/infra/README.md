@@ -130,14 +130,16 @@ the source of truth for the role definitions.
 |---|---|
 | `Viewer` | View doors, people, credentials and reports; export them. No writes. |
 | `Operator` | Everything above, plus enrol and label fobs, assign them to people, deactivate a lost fob, add or remove people from **existing** groups, and issue pairing codes. |
-| `Admin` | Everything above, plus create/delete groups, change which groups a door honours, edit door config and schedules, publish firmware, set `fwHold`, and delete people. |
+| `Admin` | Everything above, plus create/delete groups, change which groups a door honours, edit door config and schedules, publish firmware, set `fwHold`, and delete people or credentials. |
 
-> **Known deviation:** deleting a *credential* is currently **Operator**, not
-> Admin (`DELETE v1/admin/credentials` in `../api/src/functions/admin.ts`).
-> Deleting people is correctly Admin. Arguably fine — retiring a fob is squarely
-> "working within the model" — but it is not what this table originally said, and
-> it removes the audit trail rather than deactivating. Worth settling explicitly
-> before the write UI exposes a delete button.
+**Why deleting a credential is Admin and deactivating is not.** Events resolve
+against every credential regardless of `active`, so a *deactivated* fob still
+names its holder on future taps — a denied 2am attempt reads "Carl — DENIED".
+Deleting the row makes that same tap resolve to nobody: it lands in the
+unknown-card feed and is offered up for enrolment, which is backwards for a
+credential that was revoked deliberately. Nothing an Operator legitimately needs
+requires it — a mistyped number is fixed by editing, a wrong assignment by
+reassigning, and a lost fob by deactivating.
 
 The Operator boundary is deliberate: an Operator works **within** the access
 model, an Admin **redefines** it. Operators can grant a person access to doors
