@@ -1,11 +1,12 @@
 import { render } from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 import { Router, Route, Link, useLocation, Switch } from 'wouter-preact';
-import { initAuth, signIn, signOut, currentAccount, effectiveRole } from './auth';
+import { initAuth, signIn, signOut, currentAccount, effectiveRole, atLeast } from './auth';
 import { BRAND } from './branding';
 import { Dashboard } from './pages/Dashboard';
 import { Doors } from './pages/Doors';
 import { People } from './pages/People';
+import { Groups } from './pages/Groups';
 import { Reports } from './pages/Reports';
 import './styles.css';
 
@@ -22,10 +23,14 @@ function Logo({ cls }) {
 
 function Nav() {
   const [loc] = useLocation();
+  // Groups is Admin-only and rarely visited: changing a group changes who can
+  // open what, so it stays out of the way rather than sitting beside the daily
+  // tasks. The route is still enforced server-side regardless of this list.
   const items = [
     ['/', 'Dashboard'],
     ['/doors', 'Doors'],
     ['/people', 'People'],
+    ...(atLeast('Admin') ? [['/groups', 'Groups']] : []),
     ['/reports', 'Reports'],
   ];
   return (
@@ -54,6 +59,17 @@ function App() {
     if (e?.status === 403) setMsg({ kind: 'warn', text: `Not permitted: ${e.message}` });
     else if (e?.status === 401) setMsg({ kind: 'warn', text: 'Session expired — sign in again.' });
     else setMsg({ kind: 'error', text: e?.message ?? 'Something went wrong' });
+  };
+
+  /**
+   * Confirm a write succeeded.
+   *
+   * Auto-dismissed, unlike errors: a success message that lingers gets clicked
+   * away reflexively, which trains people to dismiss the ones that matter.
+   */
+  const flash = (text) => {
+    setMsg({ kind: 'ok', text });
+    setTimeout(() => setMsg((m) => (m?.text === text ? null : m)), 6000);
   };
 
   if (!ready) return null;
@@ -114,9 +130,10 @@ function App() {
       {msg && <div class={`status ${msg.kind}`} onClick={() => setMsg(null)}>{msg.text}</div>}
       <main>
         <Switch>
-          <Route path="/"><Dashboard notify={notify} /></Route>
-          <Route path="/doors"><Doors notify={notify} /></Route>
-          <Route path="/people"><People notify={notify} /></Route>
+          <Route path="/"><Dashboard notify={notify} flash={flash} /></Route>
+          <Route path="/doors"><Doors notify={notify} flash={flash} /></Route>
+          <Route path="/people"><People notify={notify} flash={flash} /></Route>
+          <Route path="/groups"><Groups notify={notify} flash={flash} /></Route>
           <Route path="/reports"><Reports notify={notify} /></Route>
           <Route><p class="muted">Page not found.</p></Route>
         </Switch>

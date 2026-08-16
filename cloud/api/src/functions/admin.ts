@@ -35,6 +35,21 @@ const bad = (error: string): HttpResponseInit => ({ status: 400, jsonBody: { err
 const splitGroups = (v: unknown): string[] =>
   String(v ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 
+/**
+ * Door config is stored as a JSON string. Tolerate an unparseable value rather
+ * than failing the whole listing: one malformed row would otherwise take the
+ * doors page down, and that page is how you discover something is wrong.
+ */
+function parseConfig(v: unknown): Record<string, unknown> {
+  if (typeof v !== 'string' || !v.trim()) return {};
+  try {
+    const parsed = JSON.parse(v);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 // ---------------------------------------------------------------------------
 // People
 // ---------------------------------------------------------------------------
@@ -299,6 +314,10 @@ app.http('adminDoors', {
           silentMinutes: lastSeen ? Math.floor((Date.now() - lastSeen) / 60000) : null,
           fwHold: d.fwHold === true,
           paired: !!d.keyHash,
+          // Returned so an editor can round-trip it. POST replaces the whole
+          // config blob, so a UI that could not read the current values would
+          // overwrite them with whatever its blank form happened to hold.
+          config: parseConfig(d.config),
         });
       }
       doors.sort((a, b) => String(a.name).localeCompare(String(b.name)));

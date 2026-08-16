@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
-import { api } from '../auth';
+import { api, atLeast } from '../auth';
 import { Table, Tile, Pill } from '../components/Table';
+import { EnrollDialog } from '../components/EnrollDialog';
 import { describeEvent, TAP } from '../events';
 
 /**
@@ -11,18 +12,32 @@ import { describeEvent, TAP } from '../events';
  * cached roster, so it looks perfectly healthy at the door itself -- this is the
  * only place that shows.
  */
-export function Dashboard() {
+export function Dashboard({ notify, flash }) {
   const [doors, setDoors] = useState([]);
   const [recent, setRecent] = useState([]);
   const [unknown, setUnknown] = useState([]);
+  const [people, setPeople] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [creds, setCreds] = useState([]);
+  const [enrolling, setEnrolling] = useState(null);
   const [err, setErr] = useState(null);
 
-  useEffect(() => {
-    (async () => {
+  const load = async () => {
       try {
         const d = await api('/v1/admin/doors');
         setDoors(d?.doors ?? []);
         setUnknown((await api('/v1/admin/reports/unknown'))?.cards ?? []);
+
+        // Needed only to enrol a card; fetched up front so the dialog opens
+        // populated rather than showing an empty person list while it loads.
+        if (atLeast('Operator')) {
+          const [p, g, c] = await Promise.all([
+            api('/v1/admin/people'), api('/v1/admin/groups'), api('/v1/admin/credentials'),
+          ]);
+          setPeople(p?.people ?? []);
+          setGroups(g?.groups ?? []);
+          setCreds(c?.credentials ?? []);
+        }
         // Newest activity across the fleet: one request per door, which is fine
         // at this scale and avoids a cross-partition scan server-side.
         const per = await Promise.all(
@@ -34,8 +49,8 @@ export function Dashboard() {
         );
         setRecent(per.flat().sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 12));
       } catch (e) { setErr(e); }
-    })();
-  }, []);
+  };
+  useEffect(() => { load(); }, []);
 
   if (err) return <p class="bad">{err.message}</p>;
 
@@ -69,6 +84,41 @@ export function Dashboard() {
             </div>
           ))}
         </div>
+      )}
+
+      {unknown.length > 0 && (
+        <div class="card">
+          <h3>Unknown cards seen</h3>
+          <p class="muted">
+            Cards that tapped but are not enrolled.{' '}
+            {atLeast('Operator')
+              ? 'Click one to give it to someone — the number is carried across, so it never has to be retyped.'
+              : 'Enrolling a card requires the Operator role.'}
+          </p>
+          <Table
+            headers={['Card', 'Taps', 'Last seen', 'Door', '']}
+            rows={unknown.map((c) => [
+              <code>{c.cred}</code>,
+              c.taps,
+              new Date(c.lastSeen).toLocaleString(),
+              c.door,
+              atLeast('Operator') ? (
+                <div class="rowacts">
+                  <button class="small" onClick={() => setEnrolling(c)}>Enrol…</button>
+                </div>
+              ) : null,
+            ])}
+          />
+        </div>
+      )}
+
+      {enrolling && (
+        <EnrollDialog
+          card={enrolling} people={people} groups={groups} creds={creds}
+          notify={notify}
+          onClose={() => setEnrolling(null)}
+          onDone={(text) => { setEnrolling(null); flash(text); load(); }}
+        />
       )}
 
       <h3>Recent activity</h3>
