@@ -13,41 +13,48 @@ WebService::WebService(uint16_t port) : _server(port) {
 
 // ---- remote log -------------------------------------------------------------
 
-// Prefix every log line with a time. Without one the ring buffer reads as a set
-// of simultaneous assertions rather than a sequence -- "not paired" followed
-// later by "paired successfully" looks like a contradiction instead of a
-// history.
+// Timestamps are STORED as a UTC epoch and formatted only when the log is
+// rendered. Formatting at write time meant lines written before configTzTime()
+// applied the timezone stayed frozen in UTC while later ones were local -- the
+// log appeared to jump backwards partway down. Converting at the edge also means
+// changing the timezone immediately re-renders the whole buffer correctly.
 //
-// Wall-clock once NTP has landed, uptime before that, and the two are visually
-// distinct (`19:05:12` vs `+127s`) so it is obvious which you are looking at.
-// That distinction is not cosmetic: everything logged during the first seconds
-// of a boot happens before the clock is trustworthy, and silently printing
-// 1970 timestamps would be worse than admitting the clock is not set yet.
-static String logStamp() {
-    time_t now = time(nullptr);
+// A line written before the clock was trustworthy shows uptime (`+12s`) rather
+// than a fabricated wall-clock time; the two forms are visually distinct so it
+// is obvious which you are reading.
+String WebService::formatStamp(const LogLine& l) {
     char buf[16];
-    if (now > 1700000000) {               // plausible wall clock -> NTP is in
+    if (l.epoch > 1700000000UL) {
+        time_t t = (time_t)l.epoch;
         struct tm tm;
-        localtime_r(&now, &tm);
+        localtime_r(&t, &tm);          // uses the timezone set NOW, not then
         strftime(buf, sizeof(buf), "%H:%M:%S", &tm);
     } else {
-        snprintf(buf, sizeof(buf), "+%lus", (unsigned long)(millis() / 1000));
+        snprintf(buf, sizeof(buf), "+%lus", (unsigned long)(l.uptimeMs / 1000));
     }
     return String(buf);
 }
 
 void WebService::log(const String& line) {
-    String stamped = logStamp() + "  " + line;
-    Serial.println(stamped);              // always echo to physical serial
+    time_t now = time(nullptr);
+
+    LogLine entry;
+    entry.epoch    = (now > 1700000000) ? (uint32_t)now : 0;
+    entry.uptimeMs = millis();
+    entry.text     = line;
+
+    String rendered = formatStamp(entry) + "  " + line;
+    Serial.println(rendered);             // always echo to physical serial
+
     if (!_logMutex) return;
     xSemaphoreTake(_logMutex, portMAX_DELAY);
-    _log[_logHead] = stamped;
+    _log[_logHead] = entry;
     _logHead = (_logHead + 1) % LOG_LINES;
     if (_logCount < LOG_LINES) _logCount++;
     // Live-push to a connected telnet client (under the same lock so writes
     // from different tasks don't interleave).
     if (_telnetClient && _telnetClient.connected()) {
-        _telnetClient.println(stamped);
+        _telnetClient.println(rendered);
     }
     xSemaphoreGive(_logMutex);
 }
@@ -96,7 +103,10 @@ String WebService::renderLog() {
     // Walk oldest -> newest.
     int start = (_logCount < LOG_LINES) ? 0 : _logHead;
     for (int i = 0; i < _logCount; i++) {
-        out += _log[(start + i) % LOG_LINES];
+        const LogLine& l = _log[(start + i) % LOG_LINES];
+        out += formatStamp(l);           // formatted now, in the current zone
+        out += "  ";
+        out += l.text;
         out += "\n";
     }
     xSemaphoreGive(_logMutex);
@@ -319,7 +329,8 @@ void WebService::serviceTelnet() {
             // re-take the same non-recursive mutex and deadlock).
             int start = (_logCount < LOG_LINES) ? 0 : _logHead;
             for (int i = 0; i < _logCount; i++) {
-                _telnetClient.println(_log[(start + i) % LOG_LINES]);
+                const LogLine& l = _log[(start + i) % LOG_LINES];
+                _telnetClient.println(formatStamp(l) + "  " + l.text);
             }
             _telnetGreeted = true;
             xSemaphoreGive(_logMutex);

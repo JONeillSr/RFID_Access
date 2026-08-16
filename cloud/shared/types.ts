@@ -74,6 +74,15 @@ export interface Door {
   lastSeen?: string;
   firmware?: string;
   rosterRev?: number;
+  /**
+   * Hold this door back from firmware offers.
+   *
+   * Firmware is published per BOARD, so without this every door of the same
+   * board updates at once -- which is precisely what you do not want when one of
+   * them is somewhere awkward to reach. Set it on the doors you want to update
+   * last, prove the image on an accessible one, then clear it.
+   */
+  fwHold?: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +100,10 @@ export enum EventType {
   // Reserved for Phase 6 (door position sensing); keep numbering contiguous.
   // DoorForced = 8,
   // DoorHeld   = 9,
+  /** OTA applied. `cred` carries the change, e.g. "2.4.4>2.5.0". */
+  FirmwareUpdated = 10,
+  /** OTA refused or failed. `cred` carries the target version. */
+  FirmwareFailed  = 11,
 }
 
 export enum EventReason {

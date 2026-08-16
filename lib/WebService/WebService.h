@@ -166,8 +166,25 @@ private:
     void   handleFooterScript();    // GET /footer.js    -> injector script
 
     // --- remote log ring buffer (shared by /webserial and telnet) ---
+    //
+    // Each entry keeps the UTC epoch it was written at, NOT a formatted string.
+    // Formatting happens at render, so every line displays in whatever timezone
+    // is currently set -- including lines written before the timezone was
+    // applied, which would otherwise stay frozen in UTC and read as time running
+    // backwards partway down the log.
+    //
+    // epoch == 0 means the clock was not yet trustworthy when the line was
+    // written; those render as uptime instead of an invented wall-clock time.
+    struct LogLine {
+        uint32_t epoch;      // UTC seconds, or 0 before the clock was valid
+        uint32_t uptimeMs;   // always recorded, so pre-clock lines still order
+        String   text;
+    };
     static const int  LOG_LINES = 40;
-    String            _log[LOG_LINES];
+    LogLine           _log[LOG_LINES];
+
+    /// Render one entry's timestamp in the CURRENT local timezone.
+    static String formatStamp(const LogLine& l);
     int               _logHead  = 0;     // guarded by _logMutex
     int               _logCount = 0;     // guarded by _logMutex
     SemaphoreHandle_t _logMutex = nullptr;

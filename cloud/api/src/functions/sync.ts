@@ -21,6 +21,7 @@ import {
   getDoor,
   touchDoor,
   ingestEvents,
+  getFirmwareFor,
 } from '../storage';
 
 export async function sync(
@@ -92,9 +93,32 @@ export async function sync(
   const doorRow = await getDoor(door.deviceId);
   if (doorRow?.config) response.config = doorRow.config;
 
-  // Firmware offers are intentionally NOT implemented yet. When they are, the
-  // offer must match this device's board exactly — an image for the wrong ESP32
-  // variant bricks a door that may be physically hard to reach.
+  // ---- firmware offer ----------------------------------------------------
+  // Looked up BY THE DEVICE'S OWN BOARD. If nothing is published for that board,
+  // nothing is offered — never a fallback to another variant's image, because a
+  // mismatched image does not misbehave, it fails to boot and strands the door.
+  //
+  // The download is proxied through this API rather than handed out as a blob
+  // SAS URL: the storage account has allowSharedKeyAccess disabled, and reusing
+  // the device key the caller already presented is simpler and revocable per
+  // door.
+  if (body.board && doorRow?.fwHold) {
+    ctx.log(`sync ${door.deviceId} is held back from firmware offers (fwHold)`);
+  } else if (body.board) {
+    const fw = await getFirmwareFor(body.board);
+    if (fw && fw.version !== body.firmware) {
+      response.firmware = {
+        board: fw.board,          // echoed so the device can re-check before flashing
+        version: fw.version,
+        url: `https://${req.headers.get('host') ?? ''}/api/v1/firmware`,
+        sha256: fw.sha256,
+      };
+      ctx.log(
+        `sync ${door.deviceId} offered firmware ${fw.version} for ${fw.board} ` +
+          `(currently ${body.firmware})`
+      );
+    }
+  }
 
   await touchDoor(door.deviceId, {
     board: body.board,

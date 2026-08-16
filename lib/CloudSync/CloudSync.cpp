@@ -15,6 +15,8 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include <Update.h>              // OTA partition writer
+#include <mbedtls/sha256.h>      // image verification
 #include <time.h>
 
 CloudSync cloudSync;
@@ -304,7 +306,216 @@ bool CloudSync::syncOnce(String& err) {
     _status.rosterRev = resp["rosterRev"] | _status.rosterRev;
     unlock();
 
+    // ---- firmware offer ----------------------------------------------------
+    // Everything above has already succeeded, so the sync counts as good even if
+    // the update is declined or fails. An OTA problem must not look like a sync
+    // problem, or a door that cannot update appears to have lost the backend.
+    if (resp["firmware"].is<JsonObject>()) {
+        JsonObject fw = resp["firmware"];
+        String fwBoard   = fw["board"]   | "";
+        String fwVersion = fw["version"] | "";
+        String fwUrl     = fw["url"]     | "";
+        String fwSha     = fw["sha256"]  | "";
+
+        say("[ota] offered " + fwVersion + " for '" + fwBoard + "' (running " FW_VERSION
+            " on '" BOARD_NAME "')");
+
+        // GATE 1 - board must match exactly.
+        //
+        // The backend already filters by board, so a mismatch here means a
+        // server-side bug or a tampered response. Check anyway: writing another
+        // variant's image does not degrade the device, it stops it booting, and
+        // some of these doors are above ceilings. A hard local check is the only
+        // thing that cannot be undone by a mistake elsewhere.
+        if (fwBoard != BOARD_NAME) {
+            String m = "REFUSED - image is for '" + fwBoard + "', this is '" BOARD_NAME "'";
+            say("[ota] " + m);
+            eventLog.append(EventLog::EVT_FW_FAILED, EventLog::R_NONE, false,
+                            fwVersion.c_str());
+            lock(); _status.fwNote = m; unlock();
+            return true;
+        }
+
+        // GATE 2 - already running it. Guards against a version that was
+        // published, applied, then re-offered from a stale record.
+        if (fwVersion == FW_VERSION) {
+            lock(); _status.fwNote = ""; unlock();
+            return true;
+        }
+
+        // GATE 3 - is the door safe to restart? Never interrupt a release or a
+        // scheduled-unlock window; just wait for the next cycle.
+        if (!_safeToUpdate) {
+            String m = "not applied - no safety check wired, OTA disabled";
+            say("[ota] " + m);
+            lock(); _status.fwNote = m; unlock();
+            return true;
+        }
+        if (!_safeToUpdate()) {
+            String m = "deferred " + fwVersion + " - door not idle";
+            say("[ota] " + m);
+            lock(); _status.fwNote = m; unlock();
+            return true;
+        }
+
+        // Do NOT download from here. This function still owns a live
+        // WiFiClientSecure: HTTPClient::end() closes the socket but the mbedTLS
+        // context (~45 KB) is not released until that object is destroyed, which
+        // happens when this function returns. Starting the OTA's handshake now
+        // means two TLS contexts at once, which does not fit -- the symptom is a
+        // bare "HTTP -1" from a host the device was talking to a second earlier.
+        //
+        // Record the approved offer; the task loop applies it after this frame
+        // is gone.
+        lock();
+        _pendingFwVersion = fwVersion;
+        _pendingFwUrl     = fwUrl;
+        _pendingFwSha     = fwSha;
+        _status.fwNote    = "queued " + fwVersion;
+        unlock();
+    } else {
+        lock(); _status.fwNote = ""; unlock();
+    }
+
     return true;
+}
+
+// -----------------------------------------------------------------------------
+//  OTA
+// -----------------------------------------------------------------------------
+
+bool CloudSync::applyFirmware(const String& url, const String& version,
+                              const String& sha256Hex, String& err) {
+    lock();
+    String key = _deviceKey;
+    unlock();
+
+    // An OTA needs its own TLS session on top of whatever else is live. Check
+    // explicitly and say so, rather than letting mbedTLS fail the handshake and
+    // surface as an uninformative "HTTP -1".
+    size_t freeHeap = ESP.getFreeHeap();
+    say("[ota] free heap before download: " + String(freeHeap) + " B");
+    if (freeHeap < MIN_FREE_HEAP) {
+        err = "only " + String(freeHeap) + " B heap free, need " + String(MIN_FREE_HEAP);
+        return false;
+    }
+
+    WiFiClientSecure client;
+    client.setCACert(CERT_DIGICERT_GLOBAL_ROOT_G2);
+    client.setHandshakeTimeout(20);
+
+    HTTPClient http;
+    if (!http.begin(client, url)) { err = "could not open connection"; return false; }
+    http.addHeader("x-device-key", key);
+    http.addHeader("x-device-id", _identity->deviceId());
+    http.setTimeout(30000);
+    // Collect the headers the server echoes so the image can be cross-checked
+    // against what was offered, rather than trusting the URL alone.
+    const char* want[] = { "x-fw-board", "x-fw-version", "x-fw-sha256", "Content-Length" };
+    http.collectHeaders(want, 4);
+
+    int rc = http.GET();
+    if (rc != 200) {
+        // Negative codes are client-side (TLS/TCP), not the server. Report the
+        // heap alongside, because exhaustion is the usual cause and a bare code
+        // sends you looking at the network instead.
+        err = "HTTP " + String(rc);
+        if (rc < 0) err += " (heap " + String(ESP.getFreeHeap()) + " B)";
+        http.end();
+        return false;
+    }
+
+    // GATE 4 — the served image must agree with the offer. A mismatch here means
+    // the offer and the blob have diverged; refuse rather than flash something
+    // that was never approved for this board.
+    String servedBoard = http.header("x-fw-board");
+    if (servedBoard.length() && servedBoard != BOARD_NAME) {
+        err = "served image is for '" + servedBoard + "'";
+        http.end();
+        return false;
+    }
+
+    int len = http.getSize();
+    if (len <= 0) { err = "server did not report a size"; http.end(); return false; }
+
+    if (!Update.begin((size_t)len)) {
+        err = "no room in the OTA slot (" + String(len) + " B)";
+        http.end();
+        return false;
+    }
+
+    // Hash while writing. The ESP32 Update library can verify an MD5 natively but
+    // not a SHA-256, so the digest is computed here in parallel with the flash
+    // write and checked BEFORE Update.end() commits anything.
+    mbedtls_sha256_context sha;
+    mbedtls_sha256_init(&sha);
+    mbedtls_sha256_starts(&sha, 0);
+
+    WiFiClient* stream = http.getStreamPtr();
+    uint8_t buf[1024];
+    int remaining = len;
+    uint32_t lastYield = millis();
+
+    while (remaining > 0 && http.connected()) {
+        size_t avail = stream->available();
+        if (!avail) {
+            if (millis() - lastYield > 15000) { err = "download stalled"; break; }
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+        int n = stream->readBytes(buf, avail > sizeof(buf) ? sizeof(buf) : avail);
+        if (n <= 0) continue;
+        if (Update.write(buf, n) != (size_t)n) { err = "flash write failed"; break; }
+        mbedtls_sha256_update(&sha, buf, n);
+        remaining -= n;
+        lastYield = millis();
+    }
+    http.end();
+
+    if (remaining > 0) {
+        if (!err.length()) err = "download incomplete (" + String(remaining) + " B short)";
+        Update.abort();
+        mbedtls_sha256_free(&sha);
+        return false;
+    }
+
+    uint8_t digest[32];
+    mbedtls_sha256_finish(&sha, digest);
+    mbedtls_sha256_free(&sha);
+
+    char hex[65];
+    for (int i = 0; i < 32; i++) snprintf(hex + i * 2, 3, "%02x", digest[i]);
+    hex[64] = '\0';
+
+    // GATE 5 — content check, and the last chance to refuse. Nothing has been
+    // committed yet; Update.abort() leaves the running image untouched.
+    if (sha256Hex.length() && !sha256Hex.equalsIgnoreCase(hex)) {
+        err = "sha256 mismatch - refusing to commit";
+        Update.abort();
+        return false;
+    }
+
+    if (!Update.end(true)) {
+        err = "commit failed (" + String(Update.getError()) + ")";
+        return false;
+    }
+
+    // Record the update BEFORE rebooting: the spool is durable, so this survives
+    // the restart and reaches the backend on the next sync. Otherwise the one
+    // event you most want in the audit trail is the one that never gets sent.
+    //
+    // The version change goes in the detail field as "<old>><new>", so the
+    // backend can answer "which doors took 2.5.0, and when" without inferring it
+    // from a gap in the boot events. FW_VERSION is still the OLD version here --
+    // this runs before the reboot.
+    {
+        String change = String(FW_VERSION) + ">" + version;
+        eventLog.append(EventLog::EVT_FW_UPDATED, EventLog::R_NONE, true, change.c_str());
+    }
+    say("[ota] committed " + version + ", rebooting");
+    delay(250);
+    ESP.restart();
+    return true;    // not reached
 }
 
 // -----------------------------------------------------------------------------
@@ -345,12 +556,45 @@ void CloudSync::task(void* pv) {
             self->_status.everSynced    = true;
             self->_status.failures      = 0;
             self->_status.lastError     = "";
+            // fwNote is deliberately NOT cleared here. A refused or deferred
+            // update does not make the sync a failure, and wiping it on success
+            // would erase the only explanation of why a door is not updating --
+            // which is exactly the bug this comment exists to prevent recurring.
         } else {
             if (self->_status.failures < 0xFFFF) self->_status.failures++;
             self->_status.lastError = err;
         }
         uint16_t failures = self->_status.failures;
+        // Take the queued offer, if any. Copied and cleared under the lock so a
+        // second sync cannot start the same download twice.
+        String fwVersion = self->_pendingFwVersion;
+        String fwUrl     = self->_pendingFwUrl;
+        String fwSha     = self->_pendingFwSha;
+        self->_pendingFwVersion = "";
+        self->_pendingFwUrl     = "";
+        self->_pendingFwSha     = "";
         self->unlock();
+
+        // Applied HERE, not inside syncOnce(): by this point syncOnce has
+        // returned and its WiFiClientSecure has been destroyed, so the OTA gets
+        // the heap to itself.
+        if (ok && fwVersion.length()) {
+            self->say("[ota] downloading " + fwVersion + " from " + fwUrl);
+            self->lock(); self->_status.fwNote = "downloading " + fwVersion; self->unlock();
+
+            String ferr;
+            if (!self->applyFirmware(fwUrl, fwVersion, fwSha, ferr)) {
+                // The running image is untouched and the door still works.
+                // Record it so a door that cannot take updates stays visible
+                // rather than silently stuck on an old build.
+                String m = "FAILED " + fwVersion + ": " + ferr;
+                self->say("[ota] " + m);
+                eventLog.append(EventLog::EVT_FW_FAILED, EventLog::R_NONE, false,
+                                fwVersion.c_str());
+                self->lock(); self->_status.fwNote = m; self->unlock();
+            }
+            // On success applyFirmware() never returns -- it reboots.
+        }
 
         // Exponential backoff, capped. A door that has been offline for hours
         // should not hammer the backend the moment it returns, but it must also

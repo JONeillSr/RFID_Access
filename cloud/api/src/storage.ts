@@ -148,6 +148,7 @@ export async function getDoor(deviceId: string): Promise<Door | undefined> {
       lastSeen: e.lastSeen,
       firmware: e.firmware,
       rosterRev: e.rosterRev,
+      fwHold: e.fwHold === true,
     };
   } catch {
     return undefined;
@@ -168,6 +169,72 @@ export async function touchDoor(
     },
     'Merge'
   );
+}
+
+// ---------------------------------------------------------------------------
+// Firmware
+// ---------------------------------------------------------------------------
+
+/**
+ * Firmware is published PER BOARD TYPE, never per fleet.
+ *
+ * An image built for one ESP32 variant does not merely misbehave on another --
+ * it does not boot, and the door is then dead until someone reaches it with a
+ * USB cable. Some of these are above ceilings. So the board is part of the key,
+ * a device is only ever offered a build matching its own board, and the device
+ * itself re-checks before flashing.
+ *
+ * Stored in Meta so no extra table is needed: PK 'firmware', RK the board name.
+ */
+export interface FirmwareRecord {
+  board: string;
+  version: string;
+  blobName: string;
+  sha256: string;
+  sizeBytes: number;
+  publishedAt: string;
+}
+
+/** Board names contain spaces ("ESP32 DevKit V1"); row keys may not. */
+export function boardKey(board: string): string {
+  return board.replace(/[^A-Za-z0-9]+/g, '-').toLowerCase();
+}
+
+export async function getFirmwareFor(board: string): Promise<FirmwareRecord | undefined> {
+  if (!board) return undefined;
+  try {
+    const e = await table('Meta').getEntity<any>('firmware', boardKey(board));
+    return {
+      board: e.board,
+      version: e.version,
+      blobName: e.blobName,
+      sha256: e.sha256,
+      sizeBytes: e.sizeBytes ?? 0,
+      publishedAt: e.publishedAt ?? '',
+    };
+  } catch {
+    return undefined;      // nothing published for this board: offer nothing
+  }
+}
+
+export async function putFirmware(rec: FirmwareRecord): Promise<void> {
+  await table('Meta').upsertEntity(
+    { partitionKey: 'firmware', rowKey: boardKey(rec.board), ...rec },
+    'Replace'
+  );
+}
+
+export async function listFirmware(): Promise<FirmwareRecord[]> {
+  const out: FirmwareRecord[] = [];
+  for await (const e of table('Meta').listEntities<any>({
+    queryOptions: { filter: odata`PartitionKey eq 'firmware'` },
+  })) {
+    out.push({
+      board: e.board, version: e.version, blobName: e.blobName,
+      sha256: e.sha256, sizeBytes: e.sizeBytes ?? 0, publishedAt: e.publishedAt ?? '',
+    });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +269,12 @@ function isPersonless(type: EventType): boolean {
     type === EventType.ScheduleOn ||
     type === EventType.ScheduleOff ||
     type === EventType.SyncFail ||
-    type === EventType.Config
+    type === EventType.Config ||
+    // Firmware events describe the DOOR, not a person. Without these they would
+    // land in EventsByPerson under "unknown-YYYYMM" -- polluting the unknown-card
+    // enrolment feed with version strings.
+    type === EventType.FirmwareUpdated ||
+    type === EventType.FirmwareFailed
   );
 }
 

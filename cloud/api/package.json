@@ -12,7 +12,9 @@
     "prestart": "npm run clean && npm run build",
     "start": "func start",
     "typecheck": "tsc --noEmit",
-    "seed": "node dist/api/src/tools/seed.js"
+    "seed": "node dist/api/src/tools/seed.js",
+    "publish-fw": "node dist/api/src/tools/publish-firmware.js",
+    "fleet": "node dist/api/src/tools/fleet.js"
   },
   "dependencies": {
     "@azure/functions": "^4.5.0",

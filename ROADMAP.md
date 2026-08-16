@@ -301,7 +301,54 @@ stored in NVS. No per-device firmware, no baked-in secrets.
 enforcement engine (its fail-secure-without-NTP behaviour is exactly right) but the
 values arrive in the sync response instead of being set per door.
 
-## Phase 4 — Device: the sync client
+## Phase 4 — Device: the sync client ✅ CORE WORKING
+
+> **Verified on hardware 2026-08-15**, firmware 2.3.2, both DevKits paired and
+> syncing. Full path proven: pair → roster down → decision local → events up →
+> acked → spool drained. Both doors at roster rev 3; `EventsByDoor` and
+> `EventsByPerson` both populated, with personless events correctly appearing
+> only in the door timeline and pre-NTP events resolved and flagged `approx`.
+>
+> **The permission model works end to end on real doors:** Front Door holds 5
+> credentials, Test Door 1 holds 4, and Carl reaches only the front door —
+> from group membership alone, with no per-door fob list anywhere.
+>
+> Trust anchors were *extracted and verified*, not recalled: the chain was
+> pulled from the live endpoint with `openssl` and both anchors proved to
+> validate it with the system trust store excluded. Sources and the generator
+> are in `lib/CloudSync/certs/` and `tools/gen_certs.py`.
+>
+> **Central OTA verified 2026-08-16.** `jtc-test1` took 2.4.4 over the air with
+> no intervention: offered, downloaded, SHA-256 verified, flashed, rebooted,
+> roster and spool intact. `jtc-main` was held back throughout via `fwHold`.
+>
+> Two real bugs surfaced getting there, both worth remembering:
+>
+> 1. **The OTA ran while the sync's TLS context was still allocated.**
+>    `HTTPClient::end()` closes the socket but does not free the ~45 KB mbedTLS
+>    context — that lives until the `WiFiClientSecure` is destroyed. Calling
+>    `applyFirmware()` from inside `syncOnce()` meant two contexts at once, which
+>    does not fit. The symptom was a bare `HTTP -1` from a host the device had
+>    been talking to a second earlier, which points at the network rather than at
+>    heap. Fixed by queueing the approved offer and applying it from the task
+>    loop, after `syncOnce()` has returned.
+> 2. **The diagnostics were deleted by the code that followed them.** CloudSync
+>    never logged at all, and the one field it did set (`lastError`) was cleared
+>    by the task loop on success — and a firmware refusal *is* a successful sync.
+>    So a door that declined an update looked identical to one never offered any.
+>    Fixed with a logger callback and a separate `fwNote` that survives success.
+>
+> **Publishing rule learned the hard way:** the backend offers whenever the
+> published version *differs*, not only when it is newer — deliberately, so a
+> rollback is possible. The cost is that publishing an older version pulls the
+> fleet back to it. Publish the version you want doors running.
+>
+> **Still outstanding in this phase:**
+> - **The staleness path is proven only by construction.** No door has yet been
+>   offline for six hours. Worth forcing once — block a device at the firewall
+>   and confirm `/status` reports `[STALE]` while taps keep working from the
+>   cached roster. That is the failure this entire design exists to survive, so
+>   it deserves a real test rather than an argument.
 
 **New `lib/CloudSync/`** — its own FreeRTOS task, never in the decision path.
 

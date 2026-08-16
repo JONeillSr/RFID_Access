@@ -627,6 +627,7 @@ void setup() {
                     if (cs.stale) body += "  [STALE - roster may be out of date]";
                     if (cs.failures) body += "  [" + String(cs.failures) + " failure(s): " +
                                               cs.lastError + "]";
+                    if (cs.fwNote.length()) body += "\n          OTA: " + cs.fwNote;
                     body += "\n";
                 }
             }
@@ -662,6 +663,29 @@ void setup() {
         // settings store, and it must never delay any of them coming up. It
         // starts its own task and does nothing at all until the device is
         // paired, so an unpaired door costs no network traffic.
+        // Whether it is safe to reboot into new firmware right now. CloudSync
+        // knows nothing about doors; this is the project telling it.
+        //
+        // An OTA ends in a restart, and a restart is only harmless when the door
+        // is already locked and idle:
+        //   - relayOffAt != 0 means the strike is energised for a grant or an
+        //     exit press. Rebooting drops it mid-release.
+        //   - gSchedActive means a scheduled-unlock window is open. Rebooting
+        //     locks a door that is meant to be open, and the schedule cannot
+        //     resume until NTP re-syncs — so people get locked out during
+        //     exactly the hours they were told they could walk in.
+        // Neither is worth doing to a working door on the backend's schedule.
+        // Declining just defers the update to the next sync cycle.
+        cloudSync.setSafeToUpdate([]() {
+            return relayOffAt == 0 && !gSchedActive;
+        });
+
+        // Give CloudSync a voice. Without this its decisions -- refused image,
+        // deferred update, download failure -- happen silently, and "the door
+        // did not update" is indistinguishable from "it was never offered
+        // anything". That ambiguity cost real debugging time once already.
+        cloudSync.setLogger([](const String& m) { webService.log(m); });
+
         cloudSync.begin(&settings, &identity, CLOUD_HOST);
         webService.log(String("[cloud] ") +
                        (cloudSync.paired() ? "paired - sync task started"

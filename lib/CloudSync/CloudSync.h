@@ -36,6 +36,7 @@
 
 #pragma once
 #include <Arduino.h>
+#include <functional>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "DeviceSettings.h"
@@ -64,6 +65,11 @@ public:
         uint16_t failures        = 0;    // consecutive
         uint32_t eventsSent      = 0;    // this boot
         String   lastError;              // empty when healthy
+        /// Firmware decision from the last sync. Kept SEPARATE from lastError:
+        /// a refused or deferred update does not make the sync itself a failure,
+        /// and clearing it on success would erase the only explanation of why a
+        /// door is not updating.
+        String   fwNote;
     };
 
     /// Call once in setup(), AFTER WiFi, Roster and EventLog are up. Starts the
@@ -88,6 +94,29 @@ public:
     /// after pairing so the first roster arrives immediately.
     void requestSyncNow();
 
+    /// Predicate the app supplies so this module can ask "is it safe to reboot
+    /// into new firmware right now?" without knowing anything about doors.
+    ///
+    /// An OTA ends in a reboot. Rebooting while the strike is energised drops it
+    /// mid-release, and rebooting during a scheduled-unlock window locks a door
+    /// that is supposed to be open until NTP re-syncs. Neither is acceptable to
+    /// do to a working door on the backend's schedule, so the update simply
+    /// waits for the next cycle.
+    ///
+    /// Return true only when the door is idle and locked. If never set, OTA is
+    /// disabled entirely — failing safe rather than assuming.
+    using SafeToUpdateFn = std::function<bool()>;
+    void setSafeToUpdate(SafeToUpdateFn fn) { _safeToUpdate = fn; }
+
+    /// Where this module reports what it decided.
+    ///
+    /// Without it, everything here is invisible: a refused or deferred firmware
+    /// update leaves no trace, and "the door did not update" is indistinguishable
+    /// from "the door was never offered anything". Wire it to WebService::log so
+    /// the decisions land on /webserial and telnet alongside everything else.
+    using LogFn = std::function<void(const String&)>;
+    void setLogger(LogFn fn) { _log = fn; }
+
 private:
     DeviceSettings* _settings = nullptr;
     DeviceIdentity* _identity = nullptr;
@@ -105,9 +134,25 @@ private:
     Status   _status;
     volatile bool _syncNow = false;
 
+    SafeToUpdateFn _safeToUpdate = nullptr;
+
+    // A firmware offer approved by syncOnce() but not yet applied. It is held
+    // here rather than actioned inline so the download starts only after
+    // syncOnce() has returned and released its TLS client -- two mbedTLS
+    // contexts do not fit in heap at once. Guarded by _mutex.
+    String _pendingFwVersion, _pendingFwUrl, _pendingFwSha;
+    LogFn          _log = nullptr;
+    void say(const String& m) const { if (_log) _log(m); }
+
     /// One full cycle: build the batch, POST, apply the response. Returns true
     /// on success. Never throws, never blocks the decision path.
     bool syncOnce(String& err);
+
+    /// Download and flash an offered image, then reboot. Only called when the
+    /// board matches and the door is safe to restart. Returns only on FAILURE —
+    /// success ends in ESP.restart().
+    bool applyFirmware(const String& url, const String& version,
+                       const String& sha256Hex, String& err);
 
     /// Epoch seconds at which this boot began, or 0 if the clock is not yet
     /// trusted. Lets the backend resolve events logged before NTP landed.

@@ -63,6 +63,10 @@ public:
         EVT_BOOT       = 5,   // device started
         EVT_CONFIG     = 6,   // settings or roster changed locally
         EVT_SYNC_FAIL  = 7,   // a sync attempt failed (why, in reason)
+        // 8 and 9 are reserved for door position sensing (Phase 6) so the
+        // numbering stays contiguous with the plan.
+        EVT_FW_UPDATED = 10,  // OTA applied; cred holds "<old>><new>"
+        EVT_FW_FAILED  = 11,  // OTA attempted and refused/failed; cred holds target
     };
 
     // Why the decision went the way it did. Far more useful than a bare
@@ -88,7 +92,16 @@ public:
         uint8_t  reason;
         uint8_t  flags;
         uint8_t  _pad;
-        char     cred[16];     // raw credential; empty for non-card events
+        /// Raw credential for card events; empty for most others.
+        ///
+        /// Firmware events reuse this field for the version change
+        /// ("2.4.4>2.5.0"), because the record is a fixed 40 bytes and adding a
+        /// field would invalidate every spool file already on a device. Treat it
+        /// as "16 bytes of event-specific detail" rather than strictly a
+        /// credential; the backend only looks it up in the credential index for
+        /// card events, so a version string here resolves to no person, which is
+        /// correct.
+        char     cred[16];
         uint32_t crc;
     };                         // exactly 40 bytes
 
