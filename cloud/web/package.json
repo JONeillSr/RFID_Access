@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "npm run build && swa deploy ./dist --env production"
+    "deploy": "npm run build && swa deploy ./dist --env production --app-name JTC-prod-rfidaccess-eastus2-swa --resource-group JTC-prod-rfidaccess-eastus2-rg"
   },
   "dependencies": {
     "@azure/msal-browser": "^3.28.1",

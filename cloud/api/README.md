@@ -185,8 +185,7 @@ is simply: publish the version you want doors running.
 ```powershell
 npm run build
 npm prune --omit=dev                      # keep the bundle small
-Compress-Archive -Path host.json,package.json,dist,node_modules `
-  -DestinationPath deploy.zip -CompressionLevel Fastest -Force
+python tools/pack.py -o deploy.zip        # NOT Compress-Archive -- see below
 az functionapp deployment source config-zip `
   --resource-group JTC-prod-rfidaccess-eastus2-rg `
   --name JTC-prod-rfidaccess-eastus2-func `
@@ -195,6 +194,64 @@ npm install                               # restore dev deps afterwards
 ```
 
 `host.json` and `dist/` must sit at the **root** of the zip, not inside a folder.
+
+### ⚠️ Never package with `Compress-Archive`
+
+It produces a zip that is perfectly valid on Windows and unusable here. Two
+defects, both invisible until runtime:
+
+- It writes **almost no directory entries** — 65 for this tree, and not the one
+  holding the functions.
+- It writes `external_attr = 0`, i.e. Unix mode **000**. Every file arrives with
+  no read permission.
+
+Flex Consumption **mounts** the zip rather than extracting it, so both survive to
+runtime. `tools/pack.py` writes Unix modes and an entry for every directory, and
+refuses to produce a package that fails either check.
+
+**The failure this causes is worth recognising**, because nothing points at the
+zip. `az` reports `"Deployment was successful."`, the package appears in the
+`deployment` container at the right size, the host starts cleanly, and:
+
+```
+Error: Worker was unable to load entry point "dist/api/src/functions/*.js":
+Found zero files matching the supplied pattern
+```
+
+A glob has to enumerate directories and stat files; it can do neither. The host
+registers **zero** functions, so every route 404s — including `/api/v1/sync`,
+which takes the entire door fleet offline. Doors keep granting from their cached
+rosters, so nothing looks wrong at any door.
+
+`az functionapp function list` returning empty is the fastest confirmation. The
+host's own explanation is in Application Insights:
+
+```powershell
+$appId = az resource show -g JTC-prod-rfidaccess-eastus2-rg `
+  -n JTC-prod-rfidaccess-eastus2-appi `
+  --resource-type "microsoft.insights/components" --query "properties.AppId" -o tsv
+$tok = az account get-access-token --resource "https://api.applicationinsights.io" `
+  --query accessToken -o tsv
+# then POST to https://api.applicationinsights.io/v1/apps/$appId/query with
+#   union traces,exceptions | where timestamp > ago(30m) | where severityLevel >= 2
+```
+
+Query it directly like this rather than via `az extension add application-insights`
+— installing that extension can leave the CLI unable to run at all.
+
+### Always verify registration, not just deployment
+
+"Deployment was successful" only means the bytes arrived. Check that the host
+actually indexed them:
+
+```powershell
+az functionapp function list -g JTC-prod-rfidaccess-eastus2-rg `
+  -n JTC-prod-rfidaccess-eastus2-func --query "length(@)"
+```
+
+Expect **14**. Zero means the host loaded nothing. An unauthenticated
+`GET /api/v1/admin/doors` returning **401** proves routes are live; **404** means
+they are not registered.
 
 Two things that will bite if forgotten:
 

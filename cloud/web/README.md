@@ -28,6 +28,21 @@ npm run deploy        # builds, then uploads dist/ to Static Web Apps
 the deploy root, which is how `logo.svg`, `favicon.svg` and
 `staticwebapp.config.json` get there.
 
+> **The `--app-name` / `--resource-group` flags are load-bearing.** Without them
+> the SWA CLI cannot tell which Static Web App you mean, so it asks *"Would you
+> like to create a new Azure Static Web Apps project?"* — and the obvious answer
+> creates a **second** SWA at a new hostname, leaving the real site untouched
+> while reporting success. The old site keeps serving, so the symptom is simply
+> that your changes never appear.
+>
+> If it ever prompts again, answer no. To deploy without an `az login` session
+> (CI, for instance) pass `--deployment-token` instead, read from
+> `az staticwebapp secrets list --query properties.apiKey`. That token is a
+> credential: never commit it.
+
+The CLI also writes a `cloud/web/.env` holding your subscription and tenant ids.
+It is gitignored, and should stay that way.
+
 ## How auth works
 
 The browser signs in with MSAL (authorization-code flow with PKCE) and calls the
