@@ -136,7 +136,7 @@ app.http('reportPerson', {
   authLevel: 'anonymous',
   route: 'v1/admin/reports/person',
   handler: async (req: HttpRequest): Promise<HttpResponseInit> => {
-    const auth = requireRole(req, 'Viewer');
+    const auth = await requireRole(req, 'Viewer');
     if (isDenied(auth)) return auth.denied;
 
     const personId = req.query.get('personId');
@@ -176,7 +176,7 @@ app.http('reportDoor', {
   authLevel: 'anonymous',
   route: 'v1/admin/reports/door',
   handler: async (req: HttpRequest): Promise<HttpResponseInit> => {
-    const auth = requireRole(req, 'Viewer');
+    const auth = await requireRole(req, 'Viewer');
     if (isDenied(auth)) return auth.denied;
 
     const deviceId = req.query.get('deviceId');
@@ -210,7 +210,7 @@ app.http('reportUnknown', {
   authLevel: 'anonymous',
   route: 'v1/admin/reports/unknown',
   handler: async (req: HttpRequest): Promise<HttpResponseInit> => {
-    const auth = requireRole(req, 'Viewer');
+    const auth = await requireRole(req, 'Viewer');
     if (isDenied(auth)) return auth.denied;
 
     const range = parseRange(req);
@@ -256,7 +256,7 @@ app.http('reportUnattributedExits', {
   authLevel: 'anonymous',
   route: 'v1/admin/reports/unattributed-exits',
   handler: async (req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> => {
-    const auth = requireRole(req, 'Viewer');
+    const auth = await requireRole(req, 'Viewer');
     if (isDenied(auth)) return auth.denied;
 
     const range = parseRange(req);

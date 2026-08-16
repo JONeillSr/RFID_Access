@@ -45,7 +45,7 @@ app.http('adminPeople', {
   route: 'v1/admin/people',
   handler: async (req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> => {
     if (req.method === 'GET') {
-      const auth = requireRole(req, 'Viewer');
+      const auth = await requireRole(req, 'Viewer');
       if (isDenied(auth)) return auth.denied;
 
       const people: any[] = [];
@@ -75,14 +75,14 @@ app.http('adminPeople', {
 
     // Operators may create and edit people, and move them between EXISTING
     // groups. They cannot invent groups -- see the groups route.
-    const auth = requireRole(req, 'Operator');
+    const auth = await requireRole(req, 'Operator');
     if (isDenied(auth)) return auth.denied;
 
     if (req.method === 'DELETE') {
       // Deleting a person is Admin-only: it is destructive, and history already
       // carries their name frozen into past events, so an operator wanting to
       // stop someone's access should deactivate instead.
-      const adm = requireRole(req, 'Admin');
+      const adm = await requireRole(req, 'Admin');
       if (isDenied(adm)) return adm.denied;
 
       const personId = req.query.get('personId');
@@ -149,7 +149,7 @@ app.http('adminCredentials', {
   route: 'v1/admin/credentials',
   handler: async (req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> => {
     if (req.method === 'GET') {
-      const auth = requireRole(req, 'Viewer');
+      const auth = await requireRole(req, 'Viewer');
       if (isDenied(auth)) return auth.denied;
       const creds: any[] = [];
       for await (const c of t('Credentials').listEntities<any>()) {
@@ -162,7 +162,7 @@ app.http('adminCredentials', {
       return ok({ credentials: creds });
     }
 
-    const auth = requireRole(req, 'Operator');
+    const auth = await requireRole(req, 'Operator');
     if (isDenied(auth)) return auth.denied;
 
     if (req.method === 'DELETE') {
@@ -217,7 +217,7 @@ app.http('adminGroups', {
   route: 'v1/admin/groups',
   handler: async (req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> => {
     if (req.method === 'GET') {
-      const auth = requireRole(req, 'Viewer');
+      const auth = await requireRole(req, 'Viewer');
       if (isDenied(auth)) return auth.denied;
       const groups: any[] = [];
       for await (const g of t('Groups').listEntities<any>()) {
@@ -226,7 +226,7 @@ app.http('adminGroups', {
       return ok({ groups });
     }
 
-    const auth = requireRole(req, 'Admin');
+    const auth = await requireRole(req, 'Admin');
     if (isDenied(auth)) return auth.denied;
 
     if (req.method === 'DELETE') {
@@ -283,7 +283,7 @@ app.http('adminDoors', {
   route: 'v1/admin/doors',
   handler: async (req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> => {
     if (req.method === 'GET') {
-      const auth = requireRole(req, 'Viewer');
+      const auth = await requireRole(req, 'Viewer');
       if (isDenied(auth)) return auth.denied;
       const doors: any[] = [];
       for await (const d of t('Doors').listEntities<any>()) {
@@ -305,7 +305,7 @@ app.http('adminDoors', {
       return ok({ doors });
     }
 
-    const auth = requireRole(req, 'Admin');
+    const auth = await requireRole(req, 'Admin');
     if (isDenied(auth)) return auth.denied;
 
     const body = (await req.json().catch(() => ({}))) as any;
@@ -342,7 +342,7 @@ app.http('adminDoorRoster', {
   authLevel: 'anonymous',
   route: 'v1/admin/doors/roster',
   handler: async (req: HttpRequest): Promise<HttpResponseInit> => {
-    const auth = requireRole(req, 'Viewer');
+    const auth = await requireRole(req, 'Viewer');
     if (isDenied(auth)) return auth.denied;
     const deviceId = req.query.get('deviceId');
     if (!deviceId) return bad('deviceId is required');
@@ -358,7 +358,7 @@ app.http('adminPairingCode', {
   authLevel: 'anonymous',
   route: 'v1/admin/doors/pairing-code',
   handler: async (req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> => {
-    const auth = requireRole(req, 'Operator');
+    const auth = await requireRole(req, 'Operator');
     if (isDenied(auth)) return auth.denied;
     const body = (await req.json().catch(() => ({}))) as any;
     const name = String(body.doorName ?? '').trim();

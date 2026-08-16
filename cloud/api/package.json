@@ -17,10 +17,11 @@
     "fleet": "node dist/api/src/tools/fleet.js"
   },
   "dependencies": {
-    "@azure/functions": "^4.5.0",
     "@azure/data-tables": "^13.3.0",
+    "@azure/functions": "^4.5.0",
+    "@azure/identity": "^4.4.1",
     "@azure/storage-blob": "^12.24.0",
-    "@azure/identity": "^4.4.1"
+    "jose": "^6.2.9"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

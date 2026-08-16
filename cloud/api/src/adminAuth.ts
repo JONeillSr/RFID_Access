@@ -1,74 +1,82 @@
 /**
- * Authorization for the admin surface.
+ * Authorization for the admin surface — cryptographic, not header-based.
  *
- * Completely separate from device authentication. A device key authenticates a
- * DOOR and permits exactly two things — uploading that door's events and
- * fetching that door's roster. It can never reach anything here. Conversely a
- * signed-in human can never impersonate a door. Keeping the two credential
- * systems disjoint means compromising a controller in a corridor grants nothing
- * on the admin surface, and vice versa.
+ * WHY THIS IS NOT THE OBVIOUS DESIGN
+ * Static Web Apps can forward a signed-in user as an `x-ms-client-principal`
+ * header, and trusting that is the usual shortcut. It is only safe while every
+ * request arrives THROUGH SWA, which strips client-supplied copies. The Function
+ * App is on a public hostname, so anyone who knows the URL can send that header
+ * themselves and become an Admin. That is not theoretical: it was demonstrated
+ * against this very API with one curl command.
  *
- * HOW IDENTITY ARRIVES
- * Static Web Apps performs the Entra sign-in and forwards the result to the API
- * as an `x-ms-client-principal` header: base64-encoded JSON naming the user and
- * their roles. SWA strips any client-supplied copy of that header before
- * forwarding, so it cannot be spoofed through the front door.
+ * So the browser obtains a real Entra access token and sends it as
+ * `Authorization: Bearer …`, and this module verifies:
  *
- * ⚠️ It CAN be spoofed by calling the Function App's own hostname directly,
- * bypassing SWA entirely. That is why the Function App must only be reachable
- * through the linked SWA in production, and why every handler here re-checks the
- * role rather than trusting that a route was reached at all.
+ *   - the SIGNATURE, against Entra's published JWKS for the tenant
+ *   - the ISSUER, so a token from another tenant is refused
+ *   - the AUDIENCE, so a token minted for a different API is refused
+ *   - expiry and not-before
+ *
+ * A forged header is worthless because there is a signature to check, and a
+ * signature cannot be produced without Entra's private key.
+ *
+ * Roles arrive in the `roles` claim, populated by Entra from the app-role
+ * assignments on the security groups — so "who is an admin?" is still answered
+ * by looking at a group, not by anything in this code.
  */
 
 import { HttpRequest } from '@azure/functions';
 
+/**
+ * Only the claims this module reads. Declared locally rather than imported from
+ * jose: importing a TYPE from an ESM-only package into a CommonJS file needs a
+ * resolution-mode attribute, which is fiddly and TypeScript-version sensitive.
+ * The runtime checks below are what actually enforce correctness anyway.
+ */
+interface VerifiedClaims {
+  oid?: unknown;
+  sub?: unknown;
+  preferred_username?: unknown;
+  upn?: unknown;
+  roles?: unknown;
+}
+
 export type Role = 'Viewer' | 'Operator' | 'Admin';
 
-/** Ranked, so a check can ask for "Operator or better" rather than listing roles. */
+/** Ranked, so a check asks for "Operator or better" rather than listing roles. */
 const RANK: Record<Role, number> = { Viewer: 1, Operator: 2, Admin: 3 };
+
+const TENANT_ID = process.env.ENTRA_TENANT_ID ?? '';
+const CLIENT_ID = process.env.ENTRA_CLIENT_ID ?? '';
+
+// jose v5 is ESM-only and this package emits CommonJS (what the Functions host
+// loads), so it is imported dynamically and cached. verifyToken is already
+// async, so this costs one promise on first use and nothing after.
+let josePromise: Promise<any> | undefined;
+const loadJose = (): Promise<any> => (josePromise ??= import('jose'));
+
+// Entra publishes its signing keys here and rotates them periodically. jose
+// caches the set and refetches on an unknown key id, so rotation is handled
+// without a redeploy — and without us ever holding a key.
+let jwks: unknown;
+async function getJwks(): Promise<unknown> {
+  if (!TENANT_ID) return undefined;
+  if (!jwks) {
+    const { createRemoteJWKSet } = await loadJose();
+    jwks = createRemoteJWKSet(
+      new URL(`https://login.microsoftonline.com/${TENANT_ID}/discovery/v2.0/keys`)
+    );
+  }
+  return jwks;
+}
+
+const ISSUER = TENANT_ID ? `https://login.microsoftonline.com/${TENANT_ID}/v2.0` : '';
 
 export interface Principal {
   userId: string;
-  userDetails: string;    // the UPN, e.g. someone@awesomewildstuff.com
+  userDetails: string;   // UPN / preferred_username
   roles: Role[];
-  /** Highest role held, or undefined if the user has none of ours. */
-  effective?: Role;
-}
-
-interface SwaPrincipal {
-  identityProvider?: string;
-  userId?: string;
-  userDetails?: string;
-  userRoles?: string[];
-}
-
-export function getPrincipal(req: HttpRequest): Principal | undefined {
-  const header = req.headers.get('x-ms-client-principal');
-  if (!header) return undefined;
-
-  let parsed: SwaPrincipal;
-  try {
-    parsed = JSON.parse(Buffer.from(header, 'base64').toString('utf8'));
-  } catch {
-    return undefined;
-  }
-
-  const known: Role[] = ['Viewer', 'Operator', 'Admin'];
-  const roles = (parsed.userRoles ?? []).filter((r): r is Role =>
-    known.includes(r as Role)
-  );
-
-  // Highest wins. A user in several groups legitimately holds several roles;
-  // taking the maximum means promoting someone does not require removing them
-  // from the baseline group first.
-  const effective = roles.sort((a, b) => RANK[b] - RANK[a])[0];
-
-  return {
-    userId: parsed.userId ?? '',
-    userDetails: parsed.userDetails ?? '',
-    roles,
-    effective,
-  };
+  effective?: Role;      // highest held
 }
 
 export interface Denied {
@@ -76,20 +84,65 @@ export interface Denied {
   jsonBody: { error: string };
 }
 
+function rolesFrom(payload: VerifiedClaims): Role[] {
+  const raw = payload.roles;
+  const list = Array.isArray(raw) ? raw.map(String) : [];
+  const known: Role[] = ['Viewer', 'Operator', 'Admin'];
+  return list.filter((r): r is Role => known.includes(r as Role));
+}
+
 /**
- * Require at least `min`. Returns the principal, or a ready-to-return response.
- *
- * 401 vs 403 is deliberate: 401 means "you are not signed in" (the UI should send
- * you to log in), 403 means "you are signed in but lack the role" (logging in
- * again will not help, and the UI should say so rather than loop).
+ * Verify the bearer token. Returns undefined for anything not provably valid —
+ * no partial trust, no "looks about right".
  */
-export function requireRole(
+export async function verifyToken(req: HttpRequest): Promise<Principal | undefined> {
+  if (!CLIENT_ID) return undefined;            // misconfigured: fail closed
+
+  const header = req.headers.get('authorization') ?? '';
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+  if (!match) return undefined;
+
+  const keys = await getJwks();
+  if (!keys) return undefined;                 // no tenant configured: fail closed
+
+  try {
+    const { jwtVerify } = await loadJose();
+    const { payload } = (await jwtVerify(match[1]!, keys, {
+      issuer: ISSUER,
+      // Entra v2 tokens carry the bare client id as audience; the api:// form is
+      // accepted too so a token requested either way validates.
+      audience: [CLIENT_ID, `api://${CLIENT_ID}`],
+      clockTolerance: 60,      // a minute of drift, no more
+    })) as { payload: VerifiedClaims };
+
+    const roles = rolesFrom(payload).sort((a, b) => RANK[b] - RANK[a]);
+    return {
+      userId: String(payload.oid ?? payload.sub ?? ''),
+      userDetails: String(payload.preferred_username ?? payload.upn ?? ''),
+      roles,
+      effective: roles[0],
+    };
+  } catch {
+    // Bad signature, wrong issuer or audience, expired, malformed — all the same
+    // answer. Distinguishing them would only help someone probing.
+    return undefined;
+  }
+}
+
+/**
+ * Require at least `min`.
+ *
+ * 401 vs 403 is deliberate: 401 means "not signed in" and the UI should send the
+ * user to log in; 403 means "signed in but lacking the role", where logging in
+ * again cannot help and the UI should say so rather than loop.
+ */
+export async function requireRole(
   req: HttpRequest,
   min: Role
-): { principal: Principal } | { denied: Denied } {
-  const p = getPrincipal(req);
+): Promise<{ principal: Principal } | { denied: Denied }> {
+  const p = await verifyToken(req);
   if (!p) {
-    return { denied: { status: 401, jsonBody: { error: 'not signed in' } } };
+    return { denied: { status: 401, jsonBody: { error: 'missing or invalid token' } } };
   }
   if (!p.effective || RANK[p.effective] < RANK[min]) {
     return {
@@ -104,16 +157,16 @@ export function requireRole(
   return { principal: p };
 }
 
-export function isDenied(r: ReturnType<typeof requireRole>): r is { denied: Denied } {
+export function isDenied(
+  r: { principal: Principal } | { denied: Denied }
+): r is { denied: Denied } {
   return 'denied' in r;
 }
 
 /**
- * A one-line audit string for the log.
- *
- * Every mutating admin action gets logged with who did it. An access-control
- * system where changes are anonymous is worth much less than one where they are
- * not — "who removed Carl's access on Tuesday" should be answerable.
+ * One-line audit string. Every mutating admin action is logged with who did it:
+ * an access-control system where changes are anonymous is worth much less than
+ * one where "who removed Carl's access on Tuesday" is answerable.
  */
 export function actor(p: Principal): string {
   return `${p.userDetails || p.userId}[${p.effective}]`;
