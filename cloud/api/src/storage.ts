@@ -54,12 +54,12 @@ function table(name: string): TableClient {
  */
 const MAX_MS = 253402300799999;
 
-function invertedTs(epochMs: number): string {
+export function invertedTs(epochMs: number): string {
   return String(MAX_MS - epochMs).padStart(15, '0');
 }
 
 /** Monthly partitions keep any single partition small and bound a query's fan-out. */
-function monthKey(d: Date): string {
+export function monthKey(d: Date): string {
   return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
