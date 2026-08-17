@@ -1,0 +1,37 @@
+#!/bin/sh
+# Refuse to commit anything that looks like a card number.
+#
+# Tracked in .githooks rather than .git/hooks so it travels with the repo and
+# gets reviewed like any other code. Enable once per clone:
+#
+#     git config core.hooksPath .githooks
+#
+# Bypass with `git commit --no-verify` if you must -- but read what it found
+# first, because the thing it is protecting is a credential.
+
+# Find an interpreter that actually RUNS, rather than the first name on PATH.
+# On Windows, `python3` is usually the Microsoft Store App Execution Alias: a
+# stub that prints "Python was not found" and exits non-zero. Picking it by name
+# and trusting it is how this hook silently did nothing the first time.
+PY=""
+for candidate in "py -3" "python3" "python"; do
+    if $candidate -c "import sys; sys.exit(0)" >/dev/null 2>&1; then
+        PY="$candidate"
+        break
+    fi
+done
+
+if [ -z "$PY" ]; then
+    echo "" >&2
+    echo "pre-commit: no working Python found, so the card-number check could not run." >&2
+    echo "" >&2
+    echo "Refusing the commit rather than skipping the check. This protects credentials," >&2
+    echo "and a check that quietly disables itself when misconfigured is worse than none:" >&2
+    echo "it reports success while protecting nothing." >&2
+    echo "" >&2
+    echo "Install Python, or bypass deliberately with: git commit --no-verify" >&2
+    echo "" >&2
+    exit 1
+fi
+
+$PY tools/check_card_numbers.py

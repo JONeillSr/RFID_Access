@@ -280,6 +280,7 @@ def main():
             assert rp not in pin2net, f"{rp} in two nets"
             pin2net[rp] = net
 
+    # KiCad file-format version (a date), not a card number.  card-check: allow
     doc = ["kicad_sch", ["version", "20250114"], ["generator", q("eeschema")],
            ["generator_version", q("10.0")], ["uuid", uid()], ["paper", q("A3")],
            ["title_block", ["title", q("RFID Door Controller")], ["rev", q("A")],

@@ -1,0 +1,27 @@
+#!/bin/sh
+# Refuse a commit MESSAGE that contains a card number.
+#
+# The pre-commit hook scans staged file content, which leaves an obvious hole:
+# a commit message is published with the repository and is not a file. Writing
+# "fixes the placeholder 000..." in a message would leak the credential just as
+# effectively, and rewriting a message after a push is worse than rewriting a
+# file, because the history is already distributed.
+#
+# Found while committing the pre-commit hook itself, whose own message quoted
+# the number it was written to protect.
+
+PY=""
+for candidate in "py -3" "python3" "python"; do
+    if $candidate -c "import sys; sys.exit(0)" >/dev/null 2>&1; then
+        PY="$candidate"
+        break
+    fi
+done
+
+if [ -z "$PY" ]; then
+    echo "commit-msg: no working Python; refusing rather than skipping the check." >&2
+    echo "Bypass deliberately with: git commit --no-verify" >&2
+    exit 1
+fi
+
+$PY tools/check_card_numbers.py --message "$1"
