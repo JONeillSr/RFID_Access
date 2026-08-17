@@ -388,6 +388,12 @@ tools/                  operational scripts
   gen_certs.py          regenerate lib/CloudSync/RootCerts.h from the PEMs in
                         lib/CloudSync/certs/ (see that header for how to
                         re-extract and verify an anchor before trusting it)
+  wrap_standalone.py    regenerate docs/board-bringup.html from the published
+                        version (adds the doctype/head a hosted page supplies)
+docs/                   printable references
+  board-bringup.html    one-page field guide for adding a new board type: the
+                        gates, the verification at each one, and where mistakes
+                        stop being recoverable. Open it directly and print.
 cloud/                  Azure backend (TypeScript, deployed separately)
   shared/types.ts       contract shared by the API and the admin web app
   api/                  Azure Functions: device sync/enroll + the admin API
