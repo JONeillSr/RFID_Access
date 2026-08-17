@@ -65,7 +65,18 @@ def is_dummy(s: str) -> bool:
 
 
 def git(*args: str) -> str:
-    return subprocess.run(['git', *args], capture_output=True, text=True).stdout
+    """Run git and decode as UTF-8 regardless of the console codepage.
+
+    Without the explicit encoding, subprocess decodes with the locale codec --
+    cp1252 on Windows -- and any UTF-8 byte in a staged file (an em-dash, an
+    emoji, a name with an accent) raises UnicodeDecodeError inside the reader
+    thread. stdout then comes back as None and the check dies with a TypeError
+    instead of examining the file. A commit containing a card number would be
+    blocked by the crash rather than the rule, which only looks like it works.
+    """
+    r = subprocess.run(['git', *args], capture_output=True,
+                       encoding='utf-8', errors='replace')
+    return r.stdout or ''
 
 
 def findings(path: str, text: str) -> list[tuple[int, str, str]]:
@@ -139,6 +150,8 @@ def main() -> int:
         try:
             text = read(p)
         except (OSError, UnicodeDecodeError):
+            continue
+        if not text:                     # unreadable, empty, or deleted
             continue
         if '\0' in text[:8000]:          # binary
             continue

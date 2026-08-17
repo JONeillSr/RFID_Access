@@ -736,15 +736,46 @@ device could simply answer.
 
 ### Test log
 
-**#9 Offline** — in progress, started `2026-08-16T20:06:02Z`. Test Door 1
-(`rfid-275044`) firewalled outbound, LAN kept reachable so internals stay
-observable; Front Door left online as a control. Predictions recorded **before**
-observation (backoff settling at the 15-minute cap → ~28 failures at +6h, versus
-~720 if it hammered at 30s), so the result can falsify rather than merely
-illustrate. Cloud-side detection already confirmed: flagged `NOT CHECKING IN` at
-T0+11m, as designed.
+**#9 Offline — ✅ PASSED**, `2026-08-16T20:06:02Z` → `2026-08-17T17:51:12Z`
+(**21h 45m**, against the 6h planned). Test Door 1 (`rfid-275044`) with **all
+outbound TCP and UDP** blocked at the firewall — NTP included, which matters for
+the clock result below. LAN left reachable so internals stayed observable; Front
+Door online as a control.
 
-Note that the spool's **overflow** path is not reached by this test — 5000 records
-needs 5000 taps. That path drops the oldest event and is the only one that
-silently loses history, so it needs a separate test with a temporarily lowered cap
+Predictions were written down **before** observing, so the run could falsify
+rather than illustrate. All eight held:
+
+| # | Prediction | Result |
+|---|---|---|
+| 1 | Cached roster still decides access | 4 granted (3 John Sr., 1 Avery), 3 denied — no cloud contact |
+| 2 | Events spool, none lost | 7 spooled, 7 delivered |
+| 3 | Backoff settles at the 15-min cap | twelve consecutive gaps, 15.0–16.1m |
+| 4 | ~28 failures at +6h | model tracked all the way to **90 observed vs 91 predicted at 21.6h — 1.1%** |
+| 5 | No crash: boot #15 holds | held through **90 failed TLS handshakes** |
+| 6 | Clock free-runs within ~1 min | <35s over 21.7h with NTP provably blocked; every event `timeApprox=false` |
+| 7 | Cloud flags it at T0+10m | `NOT CHECKING IN` at T0+11m |
+| 8 | Flush keeps original timestamps, no duplicates | timestamps span the whole outage; **62 rows, 62 distinct `(bootId, idx)`** |
+
+The flush is the part worth reading twice. Events recorded at 20:19 and 21:44 on
+the 16th arrived at 17:51 on the 17th carrying **their own times**, not the
+reconnect time, and resolved to the right people — attribution is done at ingest
+against the credential index, so a 21-hour-old tap still names its holder.
+
+Row accounting came out at **+8**, not +7. The extra is a `config` event the
+device generated at 17:50:43 when it applied the roster it had missed
+(`rev 3 → 8`), which is the outage's other half working: every change made in the
+admin app while the door was dark landed on the first sync. The dual-write split
+was exactly right — 4 attributed taps to person partitions, 3 unknown-card taps
+to `unknown-202608` (now offered in the enrolment feed), and the personless
+`config` event to the door table only.
+
+**Two gaps this run exposed**, both now addressed in the ⚠️ TODO above: free heap
+was invisible for the entire test, and `Time: … (NTP synced)` kept claiming a sync
+for 21.7 hours during which NTP was provably unreachable. It means "has synced
+since boot", not "is in sync" — reassuring in precisely the situation where it
+should not be.
+
+Still **untested**: the spool's overflow path. 5000 records needs 5000 taps, so
+this run never approached it. It drops the oldest event and is the only path that
+silently loses history, so it needs its own test with a temporarily lowered cap
 rather than being taken on trust.
