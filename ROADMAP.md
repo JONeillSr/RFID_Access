@@ -564,25 +564,35 @@ Cost is not the obstacle: the whole footprint sits inside free tiers (Flex
 Consumption grant, SWA Free, a few cents of Table Storage), so customer number
 two costs roughly what customer number one does.
 
-### ⚠️ The firmware consequence
+### ✅ The firmware consequence — resolved
 
-`CLOUD_HOST` is a `#define` in `src/main.cpp`. One backend per customer means
-either a firmware build per customer — which multiplies the per-board OTA matrix
-by the customer count and makes images non-interchangeable — or making the host
-**runtime configuration**.
+The backend host is **runtime configuration**, stored in `DeviceSettings` beside
+the device key and set on `/setup`. `CLOUD_HOST_DEFAULT` in `src/main.cpp` is now
+only the value a door uses until it is told otherwise, so existing units carried
+across the change with nothing to migrate.
 
-It must become runtime configuration:
+One image therefore serves every customer, and `publish-fw` stays per board
+rather than per board *per customer*.
 
-- Store it in `DeviceSettings` alongside the device key, set at `/setup` or
-  returned by `/api/v1/enroll` during pairing.
-- Then one image serves every customer, and `publish-fw` stays per board rather
-  than per board *per customer*.
-- The TLS anchors need no change while every backend is `*.azurewebsites.net`;
-  a customer wanting a custom domain on the *API* would need its chain checked
-  against `lib/CloudSync/certs/`.
+Two details that matter more than the storage:
 
-Do this **before** the second customer exists. Retrofitting it means reflashing
-the first one.
+- **Changing the host unpairs the door.** A device key is issued *by* a backend
+  and is meaningless to another. Keeping it would leave a door looking paired
+  while every sync is rejected — so `setHost()` clears it, which is the honest
+  state and the one `/setup` already knows how to resolve.
+- **The host is applied before any pairing code in the same submission.** A code
+  is redeemed against the deployment that issued it; pairing first would send the
+  new customer's code to the old customer's backend while the form on screen
+  plainly shows the right host.
+
+`/status` now reports `Backend:` as well, because with one image across all
+customers, "who is this door reporting to?" is no longer answerable from the
+firmware version and has to be asked of the device.
+
+TLS anchors needed no change: every deployment is `*.azurewebsites.net` and
+chains to a root already in `lib/CloudSync/certs/`. A customer wanting a custom
+domain on the **API** — as opposed to the admin app, which the device never
+contacts — would need that chain re-checked.
 
 ### Provisioning
 

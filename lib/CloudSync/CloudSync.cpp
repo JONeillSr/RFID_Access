@@ -31,18 +31,60 @@ static const size_t MAX_EVENTS_PER_SYNC = 40;
 static const size_t MIN_FREE_HEAP = 60000;
 
 void CloudSync::begin(DeviceSettings* settings, DeviceIdentity* identity,
-                      const char* host) {
+                      const char* defaultHost) {
     if (!_mutex) _mutex = xSemaphoreCreateMutex();
     _settings = settings;
     _identity = identity;
-    _host     = host;
 
     lock();
+    // A stored host wins over the compiled-in one. `defaultHost` is only a
+    // starting value for a device that has never been told otherwise, which
+    // keeps existing units working across this change with nothing to migrate.
+    //
+    // This is what lets ONE image serve every customer. Each deployment lives in
+    // its own tenant with its own Function App hostname, so a compile-time host
+    // would mean a firmware build per customer -- multiplying the per-board OTA
+    // matrix by the customer count and making images non-interchangeable in a
+    // way nothing detects: a spare flashed from the wrong folder boots fine and
+    // quietly syncs to somebody else's backend.
+    _host      = _settings ? _settings->getString(KEY_CLOUD_HOST, defaultHost) : String(defaultHost);
     _deviceKey = _settings ? _settings->getString(KEY_DEVICE_KEY, "") : String();
     _status.paired = _deviceKey.length() > 0;
     unlock();
 
     if (_status.paired) startTask();
+}
+
+String CloudSync::host() const {
+    lock();
+    String h = _host;
+    unlock();
+    return h;
+}
+
+bool CloudSync::setHost(const String& host) {
+    String h = host;
+    h.trim();
+    if (h.length() == 0) return false;
+
+    lock();
+    bool changed = (h != _host);
+    _host = h;
+    if (_settings) _settings->setString(KEY_CLOUD_HOST, h);
+
+    // A device key is issued BY a backend and means nothing to a different one.
+    // Keeping it across a host change would leave the door looking paired while
+    // every sync is rejected -- so pointing at a new backend forces re-pairing,
+    // which is the honest state and the one /setup already knows how to resolve.
+    if (changed && _deviceKey.length()) {
+        _deviceKey = "";
+        if (_settings) _settings->setString(KEY_DEVICE_KEY, "");
+        _status.paired     = false;
+        _status.everSynced = false;
+        _status.lastError  = "backend changed - re-pair required";
+    }
+    unlock();
+    return changed;
 }
 
 bool CloudSync::paired() const {

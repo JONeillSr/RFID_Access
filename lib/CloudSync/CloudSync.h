@@ -83,7 +83,21 @@ public:
     /// Call once in setup(), AFTER WiFi, Roster and EventLog are up. Starts the
     /// sync task only if the device is already paired; an unpaired device sits
     /// idle until pair() succeeds, costing nothing.
-    void begin(DeviceSettings* settings, DeviceIdentity* identity, const char* host);
+    /// `defaultHost` is only the value a device uses until it is told otherwise;
+    /// a host stored in settings wins. The backend address is deliberately NOT a
+    /// compile-time constant: one deployment per customer means one hostname per
+    /// customer, and baking it in would mean a firmware build per customer.
+    void begin(DeviceSettings* settings, DeviceIdentity* identity, const char* defaultHost);
+
+    /// The backend this door actually talks to.
+    String host() const;
+
+    /// Point the door at a different backend. Returns true if it changed.
+    ///
+    /// Changing it UNPAIRS the device: a device key is issued by one backend and
+    /// is meaningless to another, so keeping it would leave the door looking
+    /// paired while every sync is rejected.
+    bool setHost(const String& host);
 
     bool paired() const;
 
@@ -133,6 +147,7 @@ private:
 
     // NVS keys. Preferences limits key names to 15 characters.
     static constexpr const char* KEY_DEVICE_KEY = "cloudKey";
+    static constexpr const char* KEY_CLOUD_HOST = "cloudHost";
 
     mutable SemaphoreHandle_t _mutex = nullptr;
     void lock()   const { if (_mutex) xSemaphoreTake(_mutex, portMAX_DELAY); }

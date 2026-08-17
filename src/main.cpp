@@ -78,10 +78,21 @@
 // automatically). Default is US Eastern — adjust for your locale.
 #define TZ_INFO        "EST5EDT,M3.2.0,M11.1.0"
 
-// Backend the sync client talks to. Devices validate it against the trust
-// anchors embedded in lib/CloudSync/RootCerts.h -- changing this host means
-// re-checking that its certificate chain still anchors to one of them.
-#define CLOUD_HOST     "jtc-prod-rfidaccess-eastus2-func.azurewebsites.net"
+// DEFAULT backend, used only until a door is told otherwise on /setup. The
+// effective host lives in NVS beside the device key; see CloudSync::begin().
+//
+// It is deliberately not the authority. One deployment per customer means one
+// hostname per customer, so a compile-time host would force a firmware build per
+// customer -- multiplying the per-board OTA matrix by the customer count, making
+// version numbers ambiguous ("2.6.0" for whom?), and making images silently
+// non-interchangeable: a spare flashed from the wrong folder boots perfectly and
+// syncs to somebody else's backend.
+//
+// Whatever host a door ends up on, its certificate chain must still anchor to
+// one of the roots in lib/CloudSync/RootCerts.h. That holds for every
+// *.azurewebsites.net deployment; a custom domain on the API would need
+// re-checking.
+#define CLOUD_HOST_DEFAULT "jtc-prod-rfidaccess-eastus2-func.azurewebsites.net"
 
 // -- Globals ------------------------------------------------------------------
 // Clock & Data is the P-series' native output on Net2 wiring; pass
@@ -502,7 +513,8 @@ void setup() {
             CloudSync::Status cs = cloudSync.status();
             html += "<h2>Cloud</h2>";
             if (cs.paired) {
-                html += "<div class='hint'>Paired with " CLOUD_HOST ".<br>";
+                html += "<div class='hint'>Paired with " +
+                        WebService::escapeText(cloudSync.host()) + ".<br>";
                 if (cs.everSynced) {
                     html += "Last sync " + String(cs.secsSinceSuccess) + "s ago, roster rev " +
                             String(cs.rosterRev) + ".";
@@ -523,12 +535,45 @@ void setup() {
             }
             html += "<input type='text' name='pairCode' value='' placeholder='8 characters' "
                     "autocapitalize='characters' autocomplete='off'>";
+
+            // Which backend this door talks to. Runtime configuration rather
+            // than a compile-time constant, so one firmware image serves every
+            // customer instead of one build per deployment.
+            html += "<label>Backend host</label>";
+            html += "<input type='text' name='cloudHost' value='" +
+                    WebService::escapeAttr(cloudSync.host()) +
+                    "' autocomplete='off' spellcheck='false'>";
+            html += "<div class='hint'>Hostname only, no https:// and no path. "
+                    "Changing this <b>unpairs the door</b> &mdash; a device key belongs to "
+                    "the backend that issued it &mdash; so enter a pairing code from the new "
+                    "one at the same time.</div>";
             html += "<div class='hint'>Codes expire after 15 minutes and work once. "
                     "Pairing contacts the backend, so it may take a few seconds.</div>";
         });
         webService.setSetupSaveHandler([](WebServer& s) {
             if (s.hasArg("doorName")) identity.setDoorName(s.arg("doorName"));
             if (s.hasArg("siteName")) identity.setSiteName(s.arg("siteName"));
+
+            // The backend host is applied BEFORE any pairing code below, because
+            // a code is issued by one deployment and redeemed against it. Pairing
+            // first would send the new customer's code to the old customer's
+            // backend, which rejects it -- and the operator would be looking at a
+            // form that plainly shows the right host.
+            if (s.hasArg("cloudHost")) {
+                String h = s.arg("cloudHost");
+                h.trim();
+                // Tolerate a pasted URL rather than rejecting it: this is typed
+                // by hand at install time, and "https://" is the natural thing to
+                // paste from a browser.
+                if (h.startsWith("https://")) h = h.substring(8);
+                else if (h.startsWith("http://")) h = h.substring(7);
+                int slash = h.indexOf('/');
+                if (slash >= 0) h = h.substring(0, slash);
+
+                if (h.length() && cloudSync.setHost(h)) {
+                    webService.log("[cloud] backend set to " + h + " - device unpaired");
+                }
+            }
 
             // Pairing is deliberately handled last: it blocks for a TLS
             // handshake and a round trip, and the name fields above should be
@@ -637,6 +682,11 @@ void setup() {
             // whole difference between this and the RAM-only tapLog below.
             {
                 CloudSync::Status cs = cloudSync.status();
+                // Which backend, not just whether it is reachable. With one
+                // deployment per customer and one image for all of them, "who is
+                // this door reporting to?" stops being answerable from the
+                // firmware version and has to be asked of the device.
+                body += "Backend:  " + cloudSync.host() + "\n";
                 body += "Cloud:    ";
                 if (!cs.paired) {
                     body += "not paired\n";
@@ -717,7 +767,7 @@ void setup() {
         // anything". That ambiguity cost real debugging time once already.
         cloudSync.setLogger([](const String& m) { webService.log(m); });
 
-        cloudSync.begin(&settings, &identity, CLOUD_HOST);
+        cloudSync.begin(&settings, &identity, CLOUD_HOST_DEFAULT);
         webService.log(String("[cloud] ") +
                        (cloudSync.paired() ? "paired - sync task started"
                                            : "not paired - enter a code at /setup"));
