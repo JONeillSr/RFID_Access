@@ -64,6 +64,14 @@ public:
         uint32_t rosterRev       = 0;
         uint16_t failures        = 0;    // consecutive
         uint32_t eventsSent      = 0;    // this boot
+        /// Current retry spacing and when the next attempt is due, both in
+        /// seconds. Exposed because "is this door backing off correctly or
+        /// hammering the backend?" is otherwise unanswerable without watching it
+        /// from outside for hours -- which is exactly what it took to establish
+        /// the behaviour the first time. The device knows; it just never said.
+        /// `backoffSecs` is 0 while healthy (the normal poll interval applies).
+        uint32_t backoffSecs     = 0;
+        uint32_t nextAttemptSecs = 0;
         String   lastError;              // empty when healthy
         /// Firmware decision from the last sync. Kept SEPARATE from lastError:
         /// a refused or deferred update does not make the sync itself a failure,
@@ -133,6 +141,10 @@ private:
     // Guarded by _mutex.
     Status   _status;
     volatile bool _syncNow = false;
+    /// millis() at which the sync task intends to try again, and the interval it
+    /// is currently waiting. Written by the task, read under lock by status().
+    uint32_t _nextAttemptAtMs = 0;
+    uint32_t _currentWaitMs   = 0;
 
     SafeToUpdateFn _safeToUpdate = nullptr;
 

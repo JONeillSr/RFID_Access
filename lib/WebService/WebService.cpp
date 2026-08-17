@@ -219,6 +219,39 @@ String WebService::statusBody() {
     if (_hostname.length())
         body += "mDNS:     " + _hostname + ".local\n";
     body += "Uptime:   " + String(millis() / 1000) + "s\n";
+
+    // Heap, including the LOW-WATER MARK since boot.
+    //
+    // The minimum is the number that matters and the reason this line exists.
+    // Current free heap only describes the instant you happened to look, so a
+    // device that dipped to 4 KB during a TLS handshake an hour ago looks
+    // perfectly healthy now. The low-water mark survives that spike, which means
+    // a unit can be interrogated after the fact instead of having to be caught
+    // in the act.
+    //
+    // Added after an offline test where six hours of failed syncs were
+    // observable in every respect EXCEPT the one that would reveal a leak --
+    // and repeated failed TLS handshakes are exactly where a leak would live.
+    //
+    // largest-free-block is the fragmentation check: a heap with plenty free but
+    // no contiguous run large enough will still fail an allocation, and a TLS
+    // context is a big one. "80 KB free" is not reassuring if the biggest block
+    // is 6 KB.
+    {
+        uint32_t freeNow = ESP.getFreeHeap();
+        uint32_t minEver = ESP.getMinFreeHeap();
+        uint32_t biggest = ESP.getMaxAllocHeap();
+        body += "Heap:     " + String(freeNow / 1024) + " KB free, min " +
+                String(minEver / 1024) + " KB since boot, largest block " +
+                String(biggest / 1024) + " KB";
+        // Thresholds are advisory, not alarms: a TLS handshake needs roughly
+        // 45 KB, so dropping near that is the point where syncing starts to fail
+        // before anything else looks wrong.
+        if (minEver < 20000)      body += "  [LOW - allocations may be failing]";
+        else if (minEver < 45000) body += "  [tight - TLS needs ~45 KB]";
+        body += "\n";
+    }
+
     if (_statusProvider) _statusProvider(body);
     return body;
 }

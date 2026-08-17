@@ -55,8 +55,16 @@ bool CloudSync::paired() const {
 CloudSync::Status CloudSync::status() const {
     lock();
     Status s = _status;
+    uint32_t waitMs = _currentWaitMs;
+    uint32_t dueAt  = _nextAttemptAtMs;
     unlock();
-    s.paired = s.paired;
+
+    s.backoffSecs = waitMs / 1000;
+    // Unsigned subtraction, so compare before subtracting: once the deadline has
+    // passed, an attempt is due now rather than in 49 days.
+    uint32_t now = millis();
+    s.nextAttemptSecs = (dueAt > now) ? (dueAt - now) / 1000 : 0;
+
     if (s.lastSuccessMs != 0) {
         s.secsSinceSuccess = (millis() - s.lastSuccessMs) / 1000;
         s.stale = (millis() - s.lastSuccessMs) > STALE_AFTER_MS;
@@ -600,11 +608,20 @@ void CloudSync::task(void* pv) {
         // should not hammer the backend the moment it returns, but it must also
         // not wait so long that recovery looks like a hang.
         uint32_t wait = POLL_INTERVAL_MS + jitter;
+        bool backingOff = false;
         if (failures > 0) {
             uint32_t backoff = BACKOFF_MIN_MS << (failures > 5 ? 5 : failures - 1);
             if (backoff > BACKOFF_MAX_MS) backoff = BACKOFF_MAX_MS;
             wait = backoff + jitter;
+            backingOff = true;
         }
+
+        // Publish the schedule so /status can answer "when will this door try
+        // again?" without anyone having to infer it from the failure count.
+        self->lock();
+        self->_currentWaitMs   = backingOff ? wait : 0;
+        self->_nextAttemptAtMs = millis() + wait;
+        self->unlock();
 
         // Wake early if something asked for an immediate sync (e.g. just paired).
         uint32_t waited = 0;
