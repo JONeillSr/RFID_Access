@@ -465,7 +465,12 @@ void setup() {
     // Web + OTA only in STA mode; provisioning mode owns port 80.
     if (!wifiMgr.isProvisioning()) {
         // Project-specific routes register on the module's server.
-        registerWebHandlers(webService.routes());
+        // Once paired, the cloud owns this door's roster and schedule, so the
+        // local write endpoints refuse with 409. Evaluated per request rather
+        // than captured once: pairing and unpairing both happen at runtime on
+        // /setup, and a value read at boot would be wrong until the next reboot.
+        registerWebHandlers(webService.routes(),
+                            []() { return cloudSync.paired(); });
 
         // Reusable /setup page: WebService renders the common block (splash
         // hold, board, mDNS hostname) and this project appends the location
@@ -629,6 +634,13 @@ void setup() {
                                               cs.lastError + "]";
                     if (cs.fwNote.length()) body += "\n          OTA: " + cs.fwNote;
                     body += "\n";
+                }
+                // Retry schedule, whenever the door is not on the normal poll.
+                // Without this, telling "backing off correctly" apart from
+                // "hammering the backend" needs hours of outside observation.
+                if (cs.paired && cs.backoffSecs) {
+                    body += "Retry:    backing off " + String(cs.backoffSecs) +
+                            "s, next attempt in " + String(cs.nextAttemptSecs) + "s\n";
                 }
             }
             body += "Events:   " + String(eventLog.pending()) + " pending, " +

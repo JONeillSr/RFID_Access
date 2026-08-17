@@ -5,7 +5,33 @@
 #include <ArduinoJson.h>
 #include <time.h>
 
-void registerWebHandlers(WebServer& server) {
+namespace {
+
+/**
+ * Refuse a write when this door's roster is owned centrally.
+ *
+ * 409 rather than 403: the request is well-formed and the caller is entitled to
+ * make it, but it conflicts with the current state of the resource. 403 would
+ * suggest a credential problem and send someone hunting for a password that does
+ * not exist.
+ *
+ * The body says where to go instead. A bare status code produces a button that
+ * appears to do nothing, which is worse than no lockout at all -- the operator
+ * concludes the door is broken and starts power-cycling it.
+ */
+bool refuseIfManaged(WebServer& server, const IsManagedFn& isManaged) {
+    if (!isManaged || !isManaged()) return false;
+    server.send(409, "application/json",
+                "{\"error\":\"managed\",\"message\":\"This door is paired with the "
+                "admin app, which is now the only writer for its roster and "
+                "schedule. Make the change there; it arrives here on the next "
+                "sync. Unpair on /setup to manage this door locally again.\"}");
+    return true;
+}
+
+}  // namespace
+
+void registerWebHandlers(WebServer& server, IsManagedFn isManaged) {
     server.on("/", [&server]() {
         server.send_P(200, "text/html", DASHBOARD_HTML);
     });
@@ -36,7 +62,7 @@ void registerWebHandlers(WebServer& server) {
         server.send(200, "application/json", out);
     });
 
-    server.on("/api/list", [&server]() {
+    server.on("/api/list", [&server, isManaged]() {
         JsonDocument doc;
         // Roster guards itself; the lock here covers lastUnknownUid only.
         JsonArray arr = doc["entries"].to<JsonArray>();
@@ -52,12 +78,16 @@ void registerWebHandlers(WebServer& server) {
         if (lastUnknownUid.length()) doc["unknown"] = lastUnknownUid;
         else                         doc["unknown"] = nullptr;
         UNLOCK();
+        // So the page can render itself read-only instead of offering controls
+        // that will be refused. The API is still the thing that enforces it.
+        doc["managed"] = (isManaged && isManaged());
         String out;
         serializeJson(doc, out);
         server.send(200, "application/json", out);
     });
 
-    server.on("/api/add", HTTP_POST, [&server]() {
+    server.on("/api/add", HTTP_POST, [&server, isManaged]() {
+        if (refuseIfManaged(server, isManaged)) return;
         JsonDocument doc;
         if (deserializeJson(doc, server.arg("plain"))) {
             server.send(400, "text/plain", "bad json");
@@ -90,7 +120,8 @@ void registerWebHandlers(WebServer& server) {
         server.send(200, "application/json", out);
     });
 
-    server.on("/api/schedule", HTTP_POST, [&server]() {
+    server.on("/api/schedule", HTTP_POST, [&server, isManaged]() {
+        if (refuseIfManaged(server, isManaged)) return;
         JsonDocument doc;
         if (deserializeJson(doc, server.arg("plain"))) {
             server.send(400, "text/plain", "bad json");
@@ -103,7 +134,8 @@ void registerWebHandlers(WebServer& server) {
         server.send(200, "application/json", "{\"ok\":true}");
     });
 
-    server.on("/api/rename", HTTP_POST, [&server]() {
+    server.on("/api/rename", HTTP_POST, [&server, isManaged]() {
+        if (refuseIfManaged(server, isManaged)) return;
         JsonDocument doc;
         if (deserializeJson(doc, server.arg("plain"))) {
             server.send(400, "text/plain", "bad json");
@@ -113,7 +145,8 @@ void registerWebHandlers(WebServer& server) {
         server.send(200, "application/json", "{\"ok\":true}");
     });
 
-    server.on("/api/remove", HTTP_POST, [&server]() {
+    server.on("/api/remove", HTTP_POST, [&server, isManaged]() {
+        if (refuseIfManaged(server, isManaged)) return;
         JsonDocument doc;
         if (deserializeJson(doc, server.arg("plain"))) {
             server.send(400, "text/plain", "bad json");

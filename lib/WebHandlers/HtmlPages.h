@@ -60,9 +60,15 @@ const char CONFIG_HTML[] PROGMEM = R"HTML(
  .enroll{background:#15233a;border:1px solid #2a4365;border-radius:8px;padding:16px;margin-top:8px}
  .enroll .uid{font-family:ui-monospace,monospace;color:#7fb8ff;font-size:16px;font-weight:700}
  .muted{color:#6b7d90}
+ .managed{display:none;background:#33291a;border:1px solid #e0a458;border-radius:8px;
+  padding:12px 14px;margin-bottom:16px;color:#e0a458}
 </style></head><body>
 <header><h1>Manage Fobs</h1><a class="btn" href="/">&larr; Dashboard</a></header>
 <div class="wrap">
+ <div class="managed" id="managed"><strong>Managed centrally.</strong>
+  This door is paired with the admin app, which is the only writer for its roster
+  and schedule. Changes made there arrive on the next sync. Unpair on
+  <a href="/setup" style="color:#e0a458">/setup</a> to manage it locally again.</div>
  <h2>Enroll a new fob</h2>
  <div class="enroll" id="enroll"><span class="muted">Tap an un-enrolled fob on the reader; it will appear here.</span></div>
  <h2>Allowed fobs</h2>
@@ -86,12 +92,17 @@ async function rn(uid){
  const cur=(entries.find(e=>e.uid===uid)||{}).name||'';
  const nm=prompt('New name for '+uid+':',cur);
  if(nm===null||!nm.trim())return;
- await fetch('/api/rename',{method:'POST',headers:{'Content-Type':'application/json'},
-  body:JSON.stringify({uid:uid,name:nm.trim()})});
+ await post('/api/rename',{uid:uid,name:nm.trim()});
  refresh();}
 function renderEnroll(unknown){
  const eb=document.getElementById('enroll');
- if(unknown){
+ if(unknown&&managed){
+  // Still show the card -- reading it here is how you get the number to type
+  // into the admin app, and that is the whole job now.
+  eb.innerHTML='<div>Unknown card: <span class="uid">'+unknown+'</span></div>'+
+   '<div class="muted" style="margin-top:8px">Enrol this card in the admin app. '+
+   'It reaches this door on the next sync.</div>';
+ } else if(unknown){
   eb.innerHTML='<div>Unknown card: <span class="uid">'+unknown+'</span></div>'+
    '<div style="margin-top:10px"><input id="nm" placeholder="Name (e.g. John\'s fob)"> '+
    '<button onclick="add(\''+unknown+'\')">Add to allow-list</button></div>';
@@ -101,20 +112,34 @@ function renderEnroll(unknown){
  } else { eb.innerHTML='<span class="muted">Tap an un-enrolled fob on the reader; it will appear here.</span>'; }
  lastUnknownShown=unknown||null;
 }
+var managed=false;
+// Surface a refused write. Without this a 409 makes the button do nothing at
+// all, and the honest conclusion from that is "this door is broken".
+async function post(url,body){
+ const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+ if(r.status===409){let m='This door is managed from the admin app.';
+  try{m=(await r.json()).message||m;}catch(e){}
+  alert(m);refresh();return false;}
+ return r.ok;}
 async function refresh(){
  let d; try{const r=await fetch('/api/list');d=await r.json();}catch(e){return;}
+ managed=!!d.managed;
+ const mb=document.getElementById('managed');
+ if(mb)mb.style.display=managed?'block':'none';
  const lb=document.getElementById('list');
  if(!d.entries.length){lb.innerHTML='<tr><td colspan="3" class="muted" style="padding:20px;text-align:center">No fobs enrolled yet.</td></tr>';}
- else{entries=d.entries;let h='';d.entries.forEach(e=>{h+='<tr><td class="uid">'+e.uid+'</td><td>'+e.name+'</td>'+
-   '<td><button onclick="rn(\''+e.uid+'\')">Rename</button> '+
-   '<button class="rm" onclick="rm(\''+e.uid+'\')">Remove</button></td></tr>';});lb.innerHTML=h;}
+ else{entries=d.entries;let h='';d.entries.forEach(e=>{h+='<tr><td class="uid">'+e.uid+'</td><td>'+e.name+'</td><td>'+
+   (managed?'<span class="muted">managed centrally</span>'
+           :'<button onclick="rn(\''+e.uid+'\')">Rename</button> '+
+            '<button class="rm" onclick="rm(\''+e.uid+'\')">Remove</button>')+
+   '</td></tr>';});lb.innerHTML=h;}
  const unknown=d.unknown||null;
  if(unknown!==lastUnknownShown && !typing){renderEnroll(unknown);}
 }
 async function add(uid){const nm=document.getElementById('nm');const name=(nm&&nm.value)?nm.value:'Unnamed';
- await fetch('/api/add',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:uid,name:name})});
+ await post('/api/add',{uid:uid,name:name});
  typing=false;lastUnknownShown=null;refresh();}
-async function rm(uid){await fetch('/api/remove',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({uid:uid})});
+async function rm(uid){await post('/api/remove',{uid:uid});
  lastUnknownShown=null;refresh();}
 const DAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 (function(){let h='';DAYS.forEach((d,i)=>{h+='<label style="margin-right:10px"><input type="checkbox" class="s_d" data-i="'+i+'"> '+d+'</label>';});
@@ -139,6 +164,8 @@ async function saveSched(){let days=0;
    body:JSON.stringify({enabled:document.getElementById('s_en').checked,
     start:mm(document.getElementById('s_start').value),
     end:mm(document.getElementById('s_end').value),days:days})});
+  if(r.status===409){st.textContent='✗ Managed centrally — set the schedule in the admin app';
+   setTimeout(loadSched,1500);return;}
   if(!r.ok)throw 0;
   st.textContent='✓ Schedule saved';
   setTimeout(loadSched,1500);
