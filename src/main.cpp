@@ -583,7 +583,26 @@ void setup() {
                 localtime_r(&now, &tm);
                 char tbuf[40];
                 strftime(tbuf, sizeof(tbuf), "%a %Y-%m-%d %I:%M %p", &tm);
-                body += "Time:     " + String(tbuf) + " (NTP synced)\n";
+                body += "Time:     " + String(tbuf);
+                // WHEN it last synced, not merely that it once did. The clock
+                // free-runs on the crystal between syncs, so a device whose NTP
+                // has been unreachable for a day still shows a plausible time --
+                // and the old "(NTP synced)" label kept saying so for 21.7 hours
+                // with all outbound UDP blocked. ESP-IDF re-polls hourly, so a
+                // couple of hours without one means NTP is not getting through.
+                int32_t since = WiFiManager::secsSinceTimeSync();
+                if (since < 0) {
+                    // Time is valid but no sync this boot: the RTC survived a
+                    // warm reset, so it is real but nothing has confirmed it.
+                    body += " (no NTP sync this boot - unverified)\n";
+                } else {
+                    String ago = since < 90        ? String(since) + "s"
+                               : since < 5400      ? String(since / 60) + "m"
+                                                   : String(since / 3600) + "h";
+                    body += (since > 7200)
+                        ? " (NTP unreachable for " + ago + " - drifting)\n"
+                        : " (NTP synced " + ago + " ago)\n";
+                }
             } else {
                 body += "Time:     not synced yet\n";
             }

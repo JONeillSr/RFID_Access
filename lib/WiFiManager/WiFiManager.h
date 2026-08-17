@@ -37,6 +37,13 @@ public:
         _tzInfo = tz; _ntp1 = ntp1; _ntp2 = ntp2;
     }
 
+    /// Seconds since the clock was last actually corrected by NTP; -1 if it
+    /// never has been. "The time looks right" and "the time is being maintained"
+    /// are different claims, and only the first one is visible without this.
+    /// Static: the SNTP callback is a bare function pointer with nowhere to hang
+    /// an instance, so the timestamp is file-scope in the .cpp.
+    static int32_t secsSinceTimeSync();
+
     // Blocking: reads NVS credentials, tries STA, falls back to provisioning AP on failure.
     // After begin() returns, exactly one of isConnected() or isProvisioning() is true.
     void begin();

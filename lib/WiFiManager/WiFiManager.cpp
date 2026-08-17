@@ -1,6 +1,25 @@
 #include "WiFiManager.h"
+#include <esp_sntp.h>
 
 static const uint8_t DNS_PORT = 53;
+
+/**
+ * millis() of the last SUCCESSFUL SNTP update, 0 if there has never been one.
+ *
+ * File-scope because the SNTP callback is a plain C function pointer with no
+ * user argument, so there is nowhere to hang an instance. Only ever written from
+ * that callback and read elsewhere; a 32-bit aligned load/store on ESP32 is
+ * atomic, and a reader that catches the previous value is off by one sync
+ * interval on a diagnostic, which does not matter.
+ */
+static volatile uint32_t s_lastNtpSyncMs = 0;
+
+static void onSntpSync(struct timeval*) {
+    // millis() is never 0 after boot in practice, but clamp anyway so "synced"
+    // can never be mistaken for "never synced".
+    uint32_t now = millis();
+    s_lastNtpSyncMs = now ? now : 1;
+}
 
 WiFiManager::WiFiManager(const char* apSsid, const char* apPass, uint32_t connectTimeoutMs)
     : _apSsid(apSsid), _apPass(apPass), _connectTimeout(connectTimeoutMs) {
@@ -78,8 +97,31 @@ void WiFiManager::startMDNS() {
 // has provided a timezone.
 void WiFiManager::startTimeSync() {
     if (_tzInfo.length() == 0) return;
+    // Register before configTzTime so the very first sync is recorded too.
+    // Setting it repeatedly is harmless; it just replaces the same pointer.
+    sntp_set_time_sync_notification_cb(onSntpSync);
     configTzTime(_tzInfo.c_str(), _ntp1.c_str(), _ntp2.c_str());
     Serial.println("[WiFi] NTP time sync started");
+}
+
+/**
+ * How long since the clock was last actually corrected, or -1 if never.
+ *
+ * Exists because "the time looks right" and "the time is being maintained" are
+ * different claims, and only the first is visible. A device whose NTP has been
+ * unreachable for a day still reports a plausible time -- it is free-running on
+ * the crystal, drifting slowly, and nothing says so. Observed for real: a door
+ * spent 21.7 hours with all outbound UDP blocked while its status page continued
+ * to say "NTP synced", which is reassuring in precisely the situation where it
+ * should not be.
+ *
+ * ESP-IDF re-polls hourly by default, so anything past a couple of hours means
+ * NTP is not getting through.
+ */
+int32_t WiFiManager::secsSinceTimeSync() {
+    uint32_t last = s_lastNtpSyncMs;
+    if (last == 0) return -1;
+    return (int32_t)((millis() - last) / 1000);
 }
 
 // ===== Captive-portal helpers =====
