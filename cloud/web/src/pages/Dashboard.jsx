@@ -28,7 +28,7 @@ export function Dashboard({ notify, flash }) {
         setDoors(d?.doors ?? []);
         setUnknown((await api('/v1/admin/reports/unknown'))?.cards ?? []);
 
-        // Needed only to enrol a card; fetched up front so the dialog opens
+        // Needed only to enroll a card; fetched up front so the dialog opens
         // populated rather than showing an empty person list while it loads.
         if (atLeast('Operator')) {
           const [p, g, c] = await Promise.all([
@@ -104,7 +104,7 @@ export function Dashboard({ notify, flash }) {
               c.door,
               atLeast('Operator') ? (
                 <div class="rowacts">
-                  <button class="small" onClick={() => setEnrolling(c)}>Enrol…</button>
+                  <button class="small" onClick={() => setEnrolling(c)}>Enroll</button>
                 </div>
               ) : null,
             ])}

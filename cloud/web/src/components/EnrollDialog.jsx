@@ -1,5 +1,5 @@
 /**
- * Enrol a card that tapped but was not recognised.
+ * Enroll a card that tapped but was not recognized.
  *
  * WHY THIS EXISTS AS ITS OWN FLOW
  * The alternative is reading a ten-digit number off the dashboard and typing it
@@ -87,7 +87,7 @@ export function EnrollDialog({ card, people, groups, creds, onClose, onDone, not
 
   if (!atLeast('Operator')) {
     return (
-      <Modal title="Enrol card" onClose={onClose}>
+      <Modal title="Enroll card" onClose={onClose}>
         <p class="muted">Enrolling a card requires the Operator role.</p>
         <Actions><button onClick={onClose}>Close</button></Actions>
       </Modal>
@@ -95,7 +95,7 @@ export function EnrollDialog({ card, people, groups, creds, onClose, onDone, not
   }
 
   return (
-    <Modal title={`Enrol card ${card.cred}`} onClose={onClose}>
+    <Modal title={`Enroll card ${card.cred}`} onClose={onClose}>
       <div class="consequence">
         Seen <strong>{card.taps}×</strong> at <strong>{card.door}</strong>, most
         recently {new Date(card.lastSeen).toLocaleString()}.
@@ -171,7 +171,7 @@ export function EnrollDialog({ card, people, groups, creds, onClose, onDone, not
       <Actions>
         <button onClick={onClose} disabled={busy}>Cancel</button>
         <button class="primary" disabled={!valid || busy || !!existingCred} onClick={submit}>
-          {busy ? 'Enrolling…' : 'Enrol card'}
+          {busy ? 'Enrolling…' : 'Enroll card'}
         </button>
       </Actions>
     </Modal>
