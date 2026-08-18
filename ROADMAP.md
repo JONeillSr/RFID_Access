@@ -502,6 +502,63 @@ behaves exactly as today.
 Add sync state to the existing `setStatusProvider` block
 ([main.cpp:396](src/main.cpp#L396)): last sync, roster rev, spool depth, pairing state.
 
+## Phase 5b — Access follows the Entra account
+
+Disabling someone in Entra revokes their fobs on the next sweep, so offboarding
+is one action in the place it already happens. This closes the commonest
+access-control failure — not a forced door, but someone leaving and their fob
+continuing to work because nobody told the door system.
+
+The delivery half needed nothing new: `effectiveRoster()` already skips inactive
+people, so `active = false` reaches every door on its next sync.
+
+**Membership is stated, never inferred.** `managedBy` is an explicit choice on
+the person (`entra` or `manual`). Deriving it from "is there an object id?" would
+make a contractor who correctly has no account indistinguishable from an employee
+somebody forgot to link — and only the second is a hole. Anyone marked as
+Entra-governed with no link is reported prominently and never revoked: locking
+someone out over a data-entry omission is the wrong failure.
+
+Linked by **object id, not email**. UPNs change with marriages and rebrands; a
+link that silently breaks is a revocation that silently stops happening.
+
+### Three properties worth preserving
+
+**It only ever revokes.** Never reactivates, even when the account comes back.
+Restoring building access keeps a human's name against it, and a one-way job
+cannot silently undo a fob pulled by hand for being lost.
+
+**It never revokes on doubt.** Network failure, 403, a missing `accountEnabled`
+field — all leave access untouched. Only a definite *disabled* or *deleted* acts,
+and the 404 that means "deleted" is only reachable when the request itself
+succeeded, so a blip cannot be mistaken for a deleted account.
+
+**It fails open, loudly.** Failing closed would turn a Graph outage into a
+building nobody can enter. The cost is that silence resembles success, so the
+time since the last **clean** run is surfaced and a partial sweep does not reset
+that clock — the same distinction as the device's NTP line. A sweep switched off
+goes stale exactly like a broken one.
+
+### The interval is data, not a CRON
+
+A timer's schedule is fixed at deploy and can only be varied through an app
+setting — which is precisely what a Bicep deployment overwrites wholesale. An
+interval configured that way would silently revert on the next unrelated deploy.
+So the timer is a fixed 5-minute heartbeat, the interval lives in the table and
+is edited in the admin app, and the staleness threshold derives from it rather
+than being hardcoded.
+
+### Known consequence
+
+Whoever administers this system is usually also governed by it. Both door access
+*and* the Admin role come from Entra, so an admin whose account is disabled loses
+the building and the ability to undo it in the same moment. Recovery is
+`npm run seed` or the table directly. Link the sole admin **last**, after
+watching it work on someone else.
+
+Setup — granting the Function App's identity `User.Read.All` — is in
+`cloud/infra/README.md`. Until consent exists the sweep fails open and says so.
+
 ## Phase 6 — Door position sensing (hardware-gated)
 
 **Independent of Phases 3–5** and can land whenever the hardware exists; it needs
