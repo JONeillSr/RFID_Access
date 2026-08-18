@@ -115,8 +115,12 @@ void WiFiManager::startTimeSync() {
  * to say "NTP synced", which is reassuring in precisely the situation where it
  * should not be.
  *
- * ESP-IDF re-polls hourly by default, so anything past a couple of hours means
- * NTP is not getting through.
+ * Take the poll interval from the SDK rather than from memory: it is
+ * CONFIG_LWIP_SNTP_UPDATE_DELAY, which the installed framework sets to
+ * 10800000 ms -- THREE hours, not the one hour that is widely assumed. A caller
+ * that hard-codes a two-hour staleness threshold will report a healthy device as
+ * unreachable for a third of every cycle, and a warning that fires on working
+ * hardware teaches people to ignore the one that matters.
  */
 int32_t WiFiManager::secsSinceTimeSync() {
     uint32_t last = s_lastNtpSyncMs;

@@ -66,12 +66,42 @@ a plausible time and nothing says otherwise.
 
 This was observed rather than imagined: a door spent 21.7 hours with all outbound
 UDP blocked while its status page went on reporting "NTP synced", because that
-label meant *has synced since boot*. Report the age instead, and treat anything
-past a couple of hours as suspicious — ESP-IDF re-polls roughly hourly, so
-consecutive misses mean it is genuinely not getting through.
+label meant *has synced since boot*. Report the age instead.
 
-It is `static` because the SNTP notification callback is a bare C function
-pointer with no user-data argument, leaving nowhere to hang an instance.
+### Take the poll interval from the SDK, not from folklore
+
+**The re-poll interval is three hours, not one.** The installed framework sets
+
+```
+CONFIG_LWIP_SNTP_UPDATE_DELAY 10800000    // ms
+```
+
+An earlier version of this page said "roughly hourly", and a staleness threshold
+built on that assumption reported *unreachable — drifting* on healthy doors for a
+third of every cycle. A warning that fires on working hardware is worse than no
+warning: it teaches people to ignore the one that matters.
+
+Derive any threshold from that constant rather than hard-coding a number, so it
+follows the SDK if the default changes:
+
+```cpp
+#ifdef CONFIG_LWIP_SNTP_UPDATE_DELAY
+  static const uint32_t POLL_S = CONFIG_LWIP_SNTP_UPDATE_DELAY / 1000;
+#else
+  static const uint32_t POLL_S = 3600;
+#endif
+static const uint32_t STALE_S = POLL_S * 2 + 600;   // two missed polls
+```
+
+Verify the `#ifdef` actually took — a silent fall-through to the `#else` leaves
+you with the wrong number *and* a comment claiming otherwise. A temporary
+`static_assert(POLL_S == 10800, "...")` settles it in one build.
+
+One missed poll is a WiFi blip. Two consecutive misses is a signal.
+
+`secsSinceTimeSync()` is `static` because the SNTP notification callback is a
+bare C function pointer with no user-data argument, leaving nowhere to hang an
+instance.
 
 ## Behaviour notes
 

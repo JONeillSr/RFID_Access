@@ -158,6 +158,27 @@ The board string must match the device's `BOARD_NAME` exactly.
   each offer looks legitimately newer from its side.
 - Uploads the blob **before** writing the metadata, so an interrupted publish
   leaves the previous offer intact rather than pointing doors at a missing image.
+- **Refuses to republish a version with a different image.** It compares the
+  sha256 against what is already published and exits non-zero on a mismatch.
+
+That last one is not hypothetical. A fix was found *after* publishing, the
+version was rebuilt without a bump, and the second publish was refused:
+
+```
+ESP32 DevKit V1 2.7.2 is already published with a DIFFERENT image.
+  published sha256 3cd14385…
+  this file  sha256 8aba81c4…
+```
+
+By then a door had already taken the first image, so two different builds would
+both have reported `2.7.2` and no report, log or `--list` could ever have told
+them apart. **Bump the version — do not reach for `--force`.** Versions are how a
+fleet is reasoned about; `--force` is for correcting a publish nothing has
+received yet.
+
+Read the tool's output rather than skimming for the word "Published": a refusal
+and a success look similar at a glance, and assuming the wrong one leaves you
+believing a fix went out when it did not.
 
 ### Staging a rollout
 

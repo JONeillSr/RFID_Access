@@ -655,8 +655,8 @@ void setup() {
                 // free-runs on the crystal between syncs, so a device whose NTP
                 // has been unreachable for a day still shows a plausible time --
                 // and the old "(NTP synced)" label kept saying so for 21.7 hours
-                // with all outbound UDP blocked. ESP-IDF re-polls hourly, so a
-                // couple of hours without one means NTP is not getting through.
+                // with all outbound UDP blocked. The threshold comes from the
+                // SDK's own poll interval (NTP_STALE_S above), not a guess.
                 int32_t since = WiFiManager::secsSinceTimeSync();
                 if (since < 0) {
                     // Time is valid but no sync this boot: the RTC survived a

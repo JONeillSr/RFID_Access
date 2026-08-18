@@ -321,7 +321,21 @@ app-specific status fields.
 | `/api/schedule` | GET current schedule/state, POST to update |
 | `/api/add` `/api/rename` `/api/remove` | fob management (POST, JSON) |
 | `/api/list` `/api/taps` | roster and recent taps (GET, JSON) |
-| `/status` | live status page: device ID, door and site, WiFi IP, mDNS name, uptime, **heap**, OLED, reader counters, time **and how long since NTP**, schedule, enrolled count, backend host, cloud sync state, event spool, last tap |
+| `/status` | live status page: device ID, door and site, WiFi IP, mDNS name, uptime, **heap** (free / min since boot / largest block), OLED, reader counters, time **and how long since NTP**, schedule, enrolled count, **`Backend:`** host, cloud sync state, **`Retry:`** backoff when not on the normal poll, event spool, last tap |
+
+The heap line is worth reading properly, because two of its three numbers have
+already been the difference between a diagnosis and a guess:
+
+```
+Heap:  132 KB free, min 71 KB since boot, largest block 91 KB
+```
+
+**Free heap is the least useful of the three.** It describes the instant you
+looked. `min since boot` survives a spike that has passed, and `largest block` is
+what large allocations actually compete for — a TLS handshake needs ~45 KB
+*contiguous*, so plenty free in small pieces will still fail. A roster-write
+failure was once diagnosed from exactly this line while free heap looked
+entirely healthy.
 
 #### Write endpoints go read-only once a door is paired
 

@@ -744,6 +744,42 @@ visible, so "is this door backing off correctly or hammering?" currently needs a
 six-hour sampling harness to answer. That is far too much work for a question the
 device could simply answer.
 
+### Field failure: roster writes on a fragmented heap (2026-08-18)
+
+Both doors stopped applying roster changes while reporting themselves healthy.
+Every sync succeeded at the HTTP level; the device reported `roster write failed`
+with ~130 KB free. Access changes made in the admin app silently never reached
+the doors, and nothing on the dashboard said so — the doors were checking in.
+
+`Roster::replaceAll` allocated a **second** full-capacity array,
+`MAX_ENTRIES × 48 B = 24 KB contiguous`, to apply a five-fob roster of 240 bytes.
+It asked for that while the live array of the same size was still held **and**
+the sync's TLS context (~45 KB) was allocated — the most fragmented moment in the
+device's life. Free heap was never the constraint: the largest contiguous block
+was under 40 KB and falling during a sync.
+
+Three things are worth carrying forward.
+
+**The bug was latent for months** because most syncs send no roster at all — only
+ones where the revision moved. It surfaces the moment access changes, which is
+the worst possible time to find it. Rarely-exercised allocation paths deserve the
+same suspicion as rarely-exercised error paths.
+
+**`largest block` is what diagnosed it**, and that number only existed because of
+the earlier offline test. Free heap looked fine throughout. Had `/status` shown
+only free heap — the obvious thing to show — this would have been chased as a
+network or backend fault.
+
+**It could not self-heal.** A roster failure returned early, before the firmware
+offer was parsed, and the queued OTA was gated on sync success. So a door that
+could not apply a roster could never receive the update that fixed it: reboot or
+cable only. *The door least able to sync is the one that most needs the new
+image* — any early return on the path to an update offer deserves that question
+asked of it.
+
+Fixed in 2.7.2 (allocation) and 2.7.3 (deadlock). The write error now carries
+free heap, largest block and entry count, so a recurrence names its own cause.
+
 ### Test log
 
 **#9 Offline — ✅ PASSED**, `2026-08-16T20:06:02Z` → `2026-08-17T17:51:12Z`
