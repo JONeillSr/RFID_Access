@@ -17,6 +17,21 @@
 // ---------------------------------------------------------------------------
 
 /** A human. Reports are about people, not fobs: one person may carry several. */
+/**
+ * Who decides whether this person still works here.
+ *
+ * DELIBERATELY EXPLICIT, not inferred from whether an object id is present.
+ * An absent id would conflate two states that need different treatment:
+ * a contractor who correctly has no Entra account, and an employee somebody
+ * forgot to link. The second is a hole in the guarantee this exists to provide
+ * -- they look covered and are not -- so it has to be reportable, and it can
+ * only be reported if "should be linked" was stated rather than guessed.
+ *
+ *   'entra'  -- an Entra account governs access; the sweep may revoke
+ *   'manual' -- guest, contractor, one-off; only a human changes this
+ */
+export type ManagedBy = 'entra' | 'manual';
+
 export interface Person {
   personId: string;
   name: string;
@@ -25,6 +40,24 @@ export interface Person {
   /** Group ids. Access is granted where a person's groups meet a door's. */
   groups: string[];
   notes?: string;
+
+  /**
+   * Defaults to 'manual' for any record that does not say otherwise, so
+   * existing people are never swept by surprise on deploy. Opting a person in
+   * is a deliberate act.
+   */
+  managedBy?: ManagedBy;
+
+  /**
+   * Entra object id (oid), not UPN or email. Those change with marriages and
+   * rebrands; the oid never does, and a link that silently breaks is a
+   * revocation that silently stops happening.
+   */
+  entraObjectId?: string;
+
+  /** Why this person is inactive, so an admin is not left guessing. */
+  deactivatedReason?: string;
+  deactivatedAt?: string;
 }
 
 /** A physical credential. Belongs to at most one person. */

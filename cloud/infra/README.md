@@ -244,6 +244,62 @@ what looks like a network failure in the browser console, not a permission error
 Adding a customer domain means updating this list, the SPA redirect URIs, and
 `connect-src` in the web app's `staticwebapp.config.json` together.
 
+## Entra account sweep: granting Graph access
+
+Door access can follow an Entra account, so disabling someone in Entra revokes
+their fobs on the next sweep. That needs the Function App's **managed identity**
+to read user accounts from Microsoft Graph.
+
+```powershell
+$mi = az functionapp identity show `
+  --name JTC-prod-rfidaccess-eastus2-func `
+  --resource-group JTC-prod-rfidaccess-eastus2-rg --query principalId -o tsv
+
+# Microsoft Graph's well-known service principal, and the User.Read.All app role
+$graph = az ad sp show --id 00000003-0000-0000-c000-000000000000 --query id -o tsv
+$role  = az ad sp show --id 00000003-0000-0000-c000-000000000000 `
+  --query "appRoles[?value=='User.Read.All' && contains(allowedMemberTypes,'Application')].id" -o tsv
+
+az rest --method POST `
+  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$mi/appRoleAssignments" `
+  --body "{`"principalId`":`"$mi`",`"resourceId`":`"$graph`",`"appRoleId`":`"$role`"}"
+```
+
+`User.Read.All` as an **application** permission requires admin consent, which
+the command above performs if you hold Global Administrator or Privileged Role
+Administrator. It is read-only: the sweep reads `accountEnabled` and nothing else.
+
+### Until consent is granted
+
+Nothing breaks. The sweep **fails open**: Graph returns 403, every account is
+recorded as *unknown*, and nothing is revoked. The admin app shows the sweep as
+not currently enforcing, which is the honest state.
+
+That direction is deliberate. Failing closed would turn a Graph outage — or a
+consent revoked by someone tidying permissions — into a building nobody can
+enter. The trade is that silence looks like success, which is why the time since
+the last **clean** run is shown, and why a disabled sweep is allowed to go stale
+in exactly the same way as a broken one.
+
+### What the sweep will and will not do
+
+- It **only revokes**. It never restores access, even when an account is
+  re-enabled. Re-granting entry to a building keeps a human's name against it,
+  and a one-way job cannot silently undo a fob pulled by hand for a lost card.
+- It **never revokes on doubt**. A network failure, a 403, a missing
+  `accountEnabled` field — all leave access untouched. Only a definite *disabled*
+  or a definite *deleted* revokes.
+- It **only touches people explicitly marked** as governed by Entra. Guests,
+  contractors and one-offs are stated as manually managed and are left alone.
+  Anyone marked as Entra-governed but never linked to an object id is reported
+  prominently, because that is the state that reads as covered without being
+  covered.
+
+The interval is set in the admin app, not here. The timer is a fixed 5-minute
+heartbeat and the interval is data, deliberately: a schedule read from an app
+setting would be silently reverted by the next Bicep deployment — see the
+warning above about `siteConfig.appSettings` being authoritative.
+
 ## Cost
 
 At roughly 20 doors syncing every 30 s (~86k executions/month) this sits inside

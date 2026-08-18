@@ -22,6 +22,9 @@ import { DefaultAzureCredential } from '@azure/identity';
 import { requireRole, isDenied, actor } from '../adminAuth';
 import { bumpRosterRev, getDoor, effectiveRoster } from '../storage';
 import { issueEnrollCode } from '../auth';
+import {
+  getSweepConfig, SWEEP_MIN_MINUTES, SWEEP_MAX_MINUTES,
+} from './entraSweep';
 
 const account = process.env.STORAGE_ACCOUNT_NAME!;
 const endpoint = `https://${account}.table.core.windows.net`;
@@ -71,6 +74,11 @@ app.http('adminPeople', {
           email: p.email ?? '',
           active: p.active !== false,
           groups: splitGroups(p.groups),
+          // Absent means 'manual': a record that never opted in is never swept.
+          managedBy: String(p.managedBy ?? 'manual'),
+          entraObjectId: p.entraObjectId ?? '',
+          deactivatedReason: p.deactivatedReason ?? '',
+          deactivatedAt: p.deactivatedAt ?? '',
         });
       }
       // Credentials are attached so the UI can show "who holds what" without a
@@ -135,6 +143,20 @@ app.http('adminPeople', {
       if (unknown.length) return bad(`unknown group(s): ${unknown.join(', ')}`);
     }
 
+    // Entra linkage. 'entra' means the sweep may revoke this person's access;
+    // anything else means only a human ever changes it.
+    const managedBy = String(body.managedBy ?? 'manual') === 'entra' ? 'entra' : 'manual';
+    const entraObjectId = String(body.entraObjectId ?? '').trim();
+
+    // Reject a malformed object id rather than storing it. A link that does not
+    // resolve is worse than no link: the person reads as covered by automatic
+    // revocation and is not, which is precisely the state this feature exists
+    // to eliminate.
+    if (managedBy === 'entra' && entraObjectId &&
+        !/^[0-9a-fA-F-]{36}$/.test(entraObjectId)) {
+      return bad('entraObjectId must be a GUID (the Entra object id, not an email)');
+    }
+
     await t('People').upsertEntity(
       {
         partitionKey: 'person',
@@ -144,6 +166,12 @@ app.http('adminPeople', {
         email: String(body.email ?? ''),
         active: body.active !== false,
         groups: groups.join(','),
+        managedBy,
+        entraObjectId,
+        // Reactivating by hand clears the sweep's note, so a stale "disabled in
+        // Entra" reason cannot linger against someone who now has access.
+        deactivatedReason: body.active !== false ? '' : String(body.deactivatedReason ?? ''),
+        deactivatedAt: body.active !== false ? '' : String(body.deactivatedAt ?? ''),
       },
       'Replace'
     );
@@ -385,6 +413,101 @@ app.http('adminDoorRoster', {
     const door = await getDoor(deviceId);
     if (!door) return { status: 404, jsonBody: { error: 'no such door' } };
     return ok({ deviceId, door: door.name, roster: await effectiveRoster(deviceId) });
+  },
+});
+
+/**
+ * Health of the Entra sweep.
+ *
+ * Exists because the sweep fails OPEN: if Graph is unreachable it changes
+ * nothing, which keeps a Graph outage from locking a building. The cost is that
+ * silence is indistinguishable from success, so the time since the last CLEAN
+ * run has to be visible. "Has checked" and "is checking" are different claims
+ * and only one of them is a control.
+ */
+app.http('adminEntraStatus', {
+  methods: ['GET', 'POST'],
+  authLevel: 'anonymous',
+  route: 'v1/admin/entra-status',
+  handler: async (req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> => {
+    // Changing how often access is checked -- or switching the check off -- is
+    // changing the access model, not working within it. Admin.
+    if (req.method === 'POST') {
+      const adm = await requireRole(req, 'Admin');
+      if (isDenied(adm)) return adm.denied;
+
+      const body = (await req.json().catch(() => ({}))) as any;
+      const raw = Number(body.intervalMinutes);
+      if (!Number.isFinite(raw)) return bad('intervalMinutes must be a number');
+      if (raw < SWEEP_MIN_MINUTES || raw > SWEEP_MAX_MINUTES) {
+        return bad(
+          `intervalMinutes must be between ${SWEEP_MIN_MINUTES} and ${SWEEP_MAX_MINUTES}. ` +
+          `The lower bound is the timer heartbeat — a shorter interval cannot run more often ` +
+          `than the timer ticks, and would only look like it was working.`
+        );
+      }
+      const enabled = body.enabled !== false;
+
+      await t('Meta').upsertEntity(
+        {
+          partitionKey: 'meta', rowKey: 'entraSweepConfig',
+          intervalMinutes: Math.round(raw), enabled,
+        },
+        'Merge'
+      );
+      ctx.log(`admin: ${actor(adm.principal)} set entra sweep to ` +
+              `${Math.round(raw)}m, enabled=${enabled}`);
+      return ok({ intervalMinutes: Math.round(raw), enabled });
+    }
+
+    const auth = await requireRole(req, 'Viewer');
+    if (isDenied(auth)) return auth.denied;
+
+    let row: any = null;
+    try {
+      row = await t('Meta').getEntity('meta', 'entraSweep');
+    } catch {
+      row = null;                     // never run
+    }
+
+    let managed = 0, unlinked = 0, total = 0;
+    for await (const p of t('People').listEntities<any>()) {
+      total++;
+      if (String(p.managedBy ?? 'manual') !== 'entra') continue;
+      managed++;
+      if (!String(p.entraObjectId ?? '').trim()) unlinked++;
+    }
+
+    const lastSuccessAt = row?.lastSuccessAt ?? null;
+    const ageMins = lastSuccessAt
+      ? Math.floor((Date.now() - Date.parse(String(lastSuccessAt))) / 60000)
+      : null;
+
+    const cfg = await getSweepConfig();
+
+    return ok({
+      lastRunAt: row?.lastRunAt ?? null,
+      lastSuccessAt,
+      lastOk: row?.lastOk ?? null,
+      minutesSinceSuccess: ageMins,
+      intervalMinutes: cfg.intervalMinutes,
+      enabled: cfg.enabled,
+      minMinutes: SWEEP_MIN_MINUTES,
+      maxMinutes: SWEEP_MAX_MINUTES,
+      // DERIVED from the configured interval, not a fixed number. A hardcoded
+      // threshold silently becomes wrong the moment someone changes the cadence
+      // -- too tight and it cries wolf on a healthy system, too loose and it
+      // stops reporting a real outage. Three missed runs is a signal; one is a
+      // blip.
+      stale: ageMins === null || ageMins > cfg.intervalMinutes * 3,
+      error: row?.error ?? '',
+      lastRevoked: String(row?.revoked ?? '').split('; ').filter(Boolean),
+      counts: { total, entraManaged: managed, manual: total - managed, unlinked },
+      note:
+        'The sweep only ever revokes; restoring access is always a deliberate action here. ' +
+        'It changes nothing when Entra cannot be reached, so a stale check means the ' +
+        'guarantee is not currently being enforced, not that everyone is fine.',
+    });
   },
 });
 

@@ -22,22 +22,25 @@ export function People({ notify, flash }) {
   const [creds, setCreds] = useState([]);
   const [groups, setGroups] = useState([]);
   const [silentDoors, setSilentDoors] = useState([]);
+  const [entra, setEntra] = useState(null);
   const [editPerson, setEditPerson] = useState(null);
   const [editFob, setEditFob] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
     try {
-      const [p, c, g, d] = await Promise.all([
+      const [p, c, g, d, e] = await Promise.all([
         api('/v1/admin/people'),
         api('/v1/admin/credentials'),
         api('/v1/admin/groups'),
         api('/v1/admin/doors'),
+        api('/v1/admin/entra-status').catch(() => null),
       ]);
       setPeople(p?.people ?? []);
       setCreds(c?.credentials ?? []);
       setGroups(g?.groups ?? []);
       setSilentDoors((d?.doors ?? []).filter((x) => x.silentMinutes !== null && x.silentMinutes > 10));
+      setEntra(e);
     } catch (e) { notify(e); }
   };
   useEffect(() => { load(); }, []);
@@ -70,6 +73,8 @@ export function People({ notify, flash }) {
           </button>
         )}
       </div>
+
+      {entra && <EntraPanel entra={entra} notify={notify} flash={flash} onSaved={load} />}
 
       <Table
         headers={['Person', 'Groups', 'Fobs', 'Status', '']}
@@ -140,6 +145,112 @@ export function People({ notify, flash }) {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Entra sweep: whether it is enforcing, and how often.
+ *
+ * The staleness line is the point of this panel. The sweep fails OPEN — it
+ * changes nothing when Graph cannot be reached, so a Graph outage never locks a
+ * building — which means silence and success look identical. Time since the last
+ * CLEAN run is the only thing that tells them apart.
+ */
+function EntraPanel({ entra, notify, flash, onSaved }) {
+  const [mins, setMins] = useState(String(entra.intervalMinutes ?? 15));
+  const [enabled, setEnabled] = useState(entra.enabled !== false);
+  const [busy, setBusy] = useState(false);
+  const canEdit = atLeast('Admin');
+  const c = entra.counts ?? {};
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api('/v1/admin/entra-status', {
+        method: 'POST',
+        body: JSON.stringify({ intervalMinutes: Number(mins), enabled }),
+      });
+      flash(`Entra sweep set to every ${mins} minutes${enabled ? '' : ' (disabled)'}.`);
+      onSaved();
+    } catch (e) { notify(e); } finally { setBusy(false); }
+  };
+
+  const n = Number(mins);
+  const valid = Number.isFinite(n) && n >= (entra.minMinutes ?? 5) && n <= (entra.maxMinutes ?? 1440);
+
+  return (
+    <div class="card">
+      <h3>Entra account sweep</h3>
+
+      {!entra.enabled && (
+        <div class="consequence warn">
+          <strong>Turned off.</strong> Disabling an Entra account will not revoke
+          any fobs until this is switched back on.
+        </div>
+      )}
+
+      {entra.enabled && entra.stale && (
+        <div class="consequence warn">
+          <strong>Not currently enforcing.</strong>{' '}
+          {entra.lastSuccessAt
+            ? <>Last clean check was {entra.minutesSinceSuccess} minutes ago.</>
+            : <>It has never completed a clean check.</>}
+          {entra.error && <> Last error: {entra.error}</>}
+          {' '}Access is unchanged — this sweep never revokes on doubt — but a
+          disabled account would not have been picked up.
+        </div>
+      )}
+
+      {entra.enabled && !entra.stale && (
+        <p class="muted">
+          Last clean check {entra.minutesSinceSuccess === 0 ? 'just now'
+            : `${entra.minutesSinceSuccess} minutes ago`}. Checking every{' '}
+          {entra.intervalMinutes} minutes.
+        </p>
+      )}
+
+      <p class="muted">
+        <strong>{c.entraManaged ?? 0}</strong> governed by Entra ·{' '}
+        <strong>{c.manual ?? 0}</strong> managed here (guests, contractors)
+        {c.unlinked > 0 && <> · <span class="bad">{c.unlinked} marked as Entra but not linked</span></>}
+      </p>
+
+      {c.unlinked > 0 && (
+        <div class="consequence warn">
+          {c.unlinked} {c.unlinked === 1 ? 'person is' : 'people are'} marked as
+          governed by Entra with no object ID, so <strong>nothing will be revoked
+          for them</strong>. They read as covered without being covered.
+        </div>
+      )}
+
+      {entra.lastRevoked?.length > 0 && (
+        <p class="muted">Last run revoked: {entra.lastRevoked.join(', ')}</p>
+      )}
+
+      {canEdit && (
+        <div class="toolbar" style="margin-top:12px;margin-bottom:0">
+          <label class="check" style="margin:0">
+            <input type="checkbox" checked={enabled}
+                   onChange={(e) => setEnabled(e.currentTarget.checked)} />
+            <span>Enabled</span>
+          </label>
+          <span class="muted">check every</span>
+          <input type="number" value={mins} min={entra.minMinutes} max={entra.maxMinutes}
+                 style="width:90px" onInput={(e) => setMins(e.currentTarget.value)} />
+          <span class="muted">
+            minutes ({entra.minMinutes}–{entra.maxMinutes}; the lower bound is the
+            timer heartbeat)
+          </span>
+          <button class="primary" disabled={!valid || busy} onClick={save}>
+            {busy ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      )}
+
+      <p class="muted" style="margin-top:10px">{entra.note}</p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
 function PersonDialog({ person, groups, people, canDelete, busy, onClose, onSave, onDelete }) {
   const isNew = !!person.isNew;
   const [rec, set] = useRecord({
@@ -187,12 +298,51 @@ function PersonDialog({ person, groups, people, canDelete, busy, onClose, onSave
         <GroupPicker all={groups} selected={rec.groups} onChange={(g) => set('groups', g)} />
       </Field>
 
+      <Field label="Access governed by"
+             hint="Stated, not guessed. A contractor with no account and an employee nobody linked look identical otherwise — and only one of them is a problem.">
+        <select value={rec.managedBy ?? 'manual'}
+                onChange={(e) => set('managedBy', e.currentTarget.value)}>
+          <option value="manual">A person here — guest, contractor, one-off</option>
+          <option value="entra">Their Entra account</option>
+        </select>
+      </Field>
+
+      {rec.managedBy === 'entra' && (
+        <>
+          <Field
+            label="Entra object ID"
+            hint="The object id (a GUID) from the user's Entra profile — not their email. Emails change with names and rebrands; the object id never does."
+            error={rec.entraObjectId && !/^[0-9a-fA-F-]{36}$/.test(rec.entraObjectId.trim())
+              ? 'That is not a GUID. Copy the Object ID from the Entra user page.' : null}
+          >
+            <Text value={rec.entraObjectId} onInput={(v) => set('entraObjectId', v)}
+                  placeholder="00000000-0000-0000-0000-000000000000" />
+          </Field>
+          {!String(rec.entraObjectId ?? '').trim() && (
+            <div class="consequence warn">
+              Marked as governed by Entra but not linked, so <strong>nothing will be
+              revoked automatically</strong>. This reads as covered without being
+              covered — the one state worth avoiding.
+            </div>
+          )}
+        </>
+      )}
+
       <Check
         label="Active"
         checked={rec.active}
         onChange={(v) => set('active', v)}
         hint="Inactive suspends every fob this person holds."
       />
+
+      {person.deactivatedReason && !rec.active && (
+        <div class="consequence warn">
+          Deactivated automatically: <strong>{person.deactivatedReason}</strong>
+          {person.deactivatedAt && <> on {new Date(person.deactivatedAt).toLocaleString()}</>}.
+          Re-activating here is deliberate and will stick — the sweep only ever
+          revokes, and never restores access on its own.
+        </div>
+      )}
 
       {!rec.active && fobCount > 0 && (
         <div class="consequence warn">
