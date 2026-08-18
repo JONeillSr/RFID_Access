@@ -32,6 +32,9 @@ Each route is one function that dispatches on method, with the role checked
 | `v1/admin/doors` | Viewer | Admin | — |
 | `v1/admin/doors/roster` | Viewer | — | — |
 | `v1/admin/doors/pairing-code` | — | Operator | — |
+| `v1/admin/entra-lookup` | Operator | — | — |
+| `v1/admin/entra-sweep/run` | — | Operator | — |
+| `v1/admin/entra-status` | Viewer | Admin | — |
 | `v1/admin/reports/{person,door,unknown,unattributed-exits,firmware,firmware-available}` | Viewer | — | — |
 
 `doors/roster` returns the effective roster a given door would receive — the

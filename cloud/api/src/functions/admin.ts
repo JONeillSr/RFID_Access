@@ -23,7 +23,7 @@ import { requireRole, isDenied, actor } from '../adminAuth';
 import { bumpRosterRev, getDoor, effectiveRoster } from '../storage';
 import { issueEnrollCode } from '../auth';
 import {
-  getSweepConfig, SWEEP_MIN_MINUTES, SWEEP_MAX_MINUTES,
+  getSweepConfig, runSweep, SWEEP_MIN_MINUTES, SWEEP_MAX_MINUTES,
 } from './entraSweep';
 
 const account = process.env.STORAGE_ACCOUNT_NAME!;
@@ -507,6 +507,112 @@ app.http('adminEntraStatus', {
         'The sweep only ever revokes; restoring access is always a deliberate action here. ' +
         'It changes nothing when Entra cannot be reached, so a stale check means the ' +
         'guarantee is not currently being enforced, not that everyone is fine.',
+    });
+  },
+});
+
+/**
+ * Resolve a UPN to an Entra object id.
+ *
+ * The object id is what gets stored, because UPNs change with marriages and
+ * rebrands while the oid never does. But nobody knows anyone's oid, and copying
+ * a GUID out of the portal is exactly the transcription step that produced a
+ * mistyped card number earlier in this system's life. Look it up by the thing a
+ * human actually knows.
+ *
+ * Operator-level, matching who may edit a person: this reads one account by
+ * exact name and cannot enumerate the directory.
+ */
+app.http('adminEntraLookup', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'v1/admin/entra-lookup',
+  handler: async (req: HttpRequest): Promise<HttpResponseInit> => {
+    const auth = await requireRole(req, 'Operator');
+    if (isDenied(auth)) return auth.denied;
+
+    const upn = (req.query.get('upn') ?? '').trim();
+    if (!upn) return bad('upn is required');
+
+    let token: string;
+    try {
+      const t0 = await new DefaultAzureCredential().getToken('https://graph.microsoft.com/.default');
+      if (!t0?.token) throw new Error('no token');
+      token = t0.token;
+    } catch (e) {
+      return { status: 502, jsonBody: { error: `could not reach Entra: ${(e as Error).message}` } };
+    }
+
+    const url = `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(upn)}` +
+                `?$select=id,displayName,userPrincipalName,accountEnabled`;
+    const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+
+    if (res.status === 404) {
+      return { status: 404, jsonBody: { error: `no account found for "${upn}"` } };
+    }
+    if (res.status === 401 || res.status === 403) {
+      return {
+        status: 502,
+        jsonBody: {
+          error: 'Entra refused the lookup. The app needs User.Read.All application ' +
+                 'consent — see cloud/infra/README.md.',
+        },
+      };
+    }
+    if (!res.ok) {
+      return { status: 502, jsonBody: { error: `Entra returned ${res.status}` } };
+    }
+
+    const u = (await res.json()) as any;
+    return ok({
+      entraObjectId: u.id,
+      displayName: u.displayName,
+      userPrincipalName: u.userPrincipalName,
+      // Surfaced so linking an ALREADY-disabled account is a deliberate choice.
+      // Otherwise the next sweep revokes them minutes later and it looks like a
+      // fault rather than the feature doing exactly what was asked.
+      accountEnabled: u.accountEnabled === true,
+    });
+  },
+});
+
+/**
+ * Run the sweep immediately.
+ *
+ * The schedule is fine for someone working their notice. It is not fine when HR
+ * disables an account because somebody has just been walked out of the building
+ * — waiting up to the configured interval is the wrong answer to that, and the
+ * person asking is unlikely to be an Admin.
+ *
+ * Operator-level for that reason. The risk is contained by what a sweep can do:
+ * it only ever revokes, and only what Entra already says is disabled. Running it
+ * early cannot grant anyone anything, and cannot revoke anyone the schedule
+ * would not have revoked minutes later.
+ *
+ * Safe to overlap with the timer. The writes are idempotent merges and a
+ * duplicate roster-revision bump only makes doors re-fetch.
+ */
+app.http('adminEntraSweepNow', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  route: 'v1/admin/entra-sweep/run',
+  handler: async (req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> => {
+    const auth = await requireRole(req, 'Operator');
+    if (isDenied(auth)) return auth.denied;
+
+    ctx.log(`admin: ${actor(auth.principal)} triggered an immediate Entra sweep`);
+    const r = await runSweep(ctx);
+
+    return ok({
+      ...r,
+      // Say how long until it actually takes effect at the door. "Revoked" in a
+      // database is not a locked door, and in the situation this button exists
+      // for, the difference matters.
+      appliesAtDoorsWithinSeconds: 30,
+      note: r.ok
+        ? 'Doors apply this on their next sync, within about 30 seconds.'
+        : 'This run could not check every account, so some access may be unchanged. ' +
+          'Nothing was revoked on doubt.',
     });
   },
 });

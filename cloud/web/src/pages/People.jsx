@@ -157,8 +157,22 @@ function EntraPanel({ entra, notify, flash, onSaved }) {
   const [mins, setMins] = useState(String(entra.intervalMinutes ?? 15));
   const [enabled, setEnabled] = useState(entra.enabled !== false);
   const [busy, setBusy] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [ranNow, setRanNow] = useState(null);
   const canEdit = atLeast('Admin');
   const c = entra.counts ?? {};
+
+  const runNow = async () => {
+    setRunning(true); setRanNow(null);
+    try {
+      const r = await api('/v1/admin/entra-sweep/run', { method: 'POST' });
+      setRanNow(r);
+      // Refresh so a revoked person shows as inactive without a manual reload —
+      // in the situation this button exists for, nobody should be wondering
+      // whether it took.
+      onSaved();
+    } catch (e) { notify(e); } finally { setRunning(false); }
+  };
 
   const save = async () => {
     setBusy(true);
@@ -224,6 +238,32 @@ function EntraPanel({ entra, notify, flash, onSaved }) {
         <p class="muted">Last run revoked: {entra.lastRevoked.join(', ')}</p>
       )}
 
+      {/* Operator-level, not Admin: the person who needs this is whoever was
+          told to get someone out of the building, and waiting for an Admin is
+          the wrong answer to that. It can only revoke, and only what Entra
+          already says. */}
+      {atLeast('Operator') && (
+        <div class="toolbar" style="margin-top:12px">
+          <button disabled={running} onClick={runNow}>
+            {running ? 'Running…' : 'Run sweep now'}
+          </button>
+          <span class="muted">
+            For an urgent offboarding — picks up Entra changes immediately instead
+            of waiting for the next scheduled run.
+          </span>
+        </div>
+      )}
+
+      {ranNow && (
+        <div class={`consequence${ranNow.ok ? '' : ' warn'}`}>
+          Checked {ranNow.checked} account{ranNow.checked === 1 ? '' : 's'}.{' '}
+          {ranNow.revoked?.length
+            ? <>Revoked: <strong>{ranNow.revoked.join(', ')}</strong>.{' '}</>
+            : <>Nothing needed revoking.{' '}</>}
+          {ranNow.note}
+        </div>
+      )}
+
       {canEdit && (
         <div class="toolbar" style="margin-top:12px;margin-bottom:0">
           <label class="check" style="margin:0">
@@ -258,6 +298,26 @@ function PersonDialog({ person, groups, people, canDelete, busy, onClose, onSave
   });
   const [confirmDelete, setConfirmDelete] = useState(false);
   const taken = people.map((p) => p.personId);
+
+  // UPN -> object id lookup.
+  const [upn, setUpn] = useState('');
+  const [found, setFound] = useState(null);
+  const [looking, setLooking] = useState(false);
+  const [lookupErr, setLookupErr] = useState(null);
+
+  const doLookup = async () => {
+    setLooking(true); setLookupErr(null); setFound(null);
+    try {
+      const r = await api(`/v1/admin/entra-lookup?upn=${encodeURIComponent(upn.trim())}`);
+      setFound(r);
+      set('entraObjectId', r.entraObjectId);
+      // Fill the name only when blank, so a lookup never quietly overwrites a
+      // name somebody chose deliberately.
+      if (!rec.name.trim()) set('name', r.displayName ?? '');
+    } catch (e) {
+      setLookupErr(e?.message ?? 'Lookup failed');
+    } finally { setLooking(false); }
+  };
 
   // Suggest an id from the name while creating, until the user types their own.
   const [idTouched, setIdTouched] = useState(false);
@@ -309,11 +369,34 @@ function PersonDialog({ person, groups, people, canDelete, busy, onClose, onSave
 
       {rec.managedBy === 'entra' && (
         <>
+          <Field label="Find their account"
+                 hint="Look it up by sign-in name. The object id is what gets stored, but nobody knows anyone's object id — and copying a GUID by hand is the transcription step worth removing."
+                 error={lookupErr}>
+            <div style="display:flex;gap:8px">
+              <Text value={upn} onInput={(v) => { setUpn(v); setLookupErr(null); }}
+                    placeholder="someone@yourdomain.com" />
+              <button disabled={!upn.trim() || looking} onClick={doLookup}>
+                {looking ? 'Looking…' : 'Look up'}
+              </button>
+            </div>
+          </Field>
+
+          {found && (
+            <div class={`consequence${found.accountEnabled ? '' : ' warn'}`}>
+              Found <strong>{found.displayName}</strong> ({found.userPrincipalName}).
+              {found.accountEnabled
+                ? ' Account is enabled.'
+                : <> Account is <strong>already disabled</strong> — saving this link
+                    will revoke their fobs on the next sweep. Intended if you are
+                    recording someone who has already left.</>}
+            </div>
+          )}
+
           <Field
             label="Entra object ID"
-            hint="The object id (a GUID) from the user's Entra profile — not their email. Emails change with names and rebrands; the object id never does."
+            hint="Stored rather than the email, because emails change with names and rebrands and the object id never does."
             error={rec.entraObjectId && !/^[0-9a-fA-F-]{36}$/.test(rec.entraObjectId.trim())
-              ? 'That is not a GUID. Copy the Object ID from the Entra user page.' : null}
+              ? 'That is not a GUID. Use the lookup above, or copy the Object ID from the Entra user page.' : null}
           >
             <Text value={rec.entraObjectId} onInput={(v) => set('entraObjectId', v)}
                   placeholder="00000000-0000-0000-0000-000000000000" />
