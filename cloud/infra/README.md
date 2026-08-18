@@ -265,8 +265,12 @@ $role  = az ad sp show --id 00000003-0000-0000-c000-000000000000 `
 # anything that points at the quoting.
 $body = @{ principalId = $mi; resourceId = $graph; appRoleId = $role } | ConvertTo-Json -Compress
 
+# --headers is required. az rest does not always set Content-Type for you, and
+# Graph rejects any write without it: "Write requests (excluding DELETE) must
+# contain the Content-Type header declaration."
 az rest --method POST `
   --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$mi/appRoleAssignments" `
+  --headers "Content-Type=application/json" `
   --body $body
 ```
 
