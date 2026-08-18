@@ -248,6 +248,108 @@ app.http('reportUnknown', {
 });
 
 // ---------------------------------------------------------------------------
+// Firmware history — what each door has run, and whether it came back
+// ---------------------------------------------------------------------------
+
+app.http('reportFirmware', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'v1/admin/reports/firmware',
+  handler: async (req: HttpRequest): Promise<HttpResponseInit> => {
+    const auth = await requireRole(req, 'Viewer');
+    if (isDenied(auth)) return auth.denied;
+
+    const range = parseRange(req);
+    if (typeof range === 'string') return bad(range);
+
+    // Firmware events are personless, so they live only in EventsByDoor. One
+    // door or the whole fleet; there is no cross-door partition to scan.
+    const only = req.query.get('deviceId');
+    const doors: { id: string; name: string; firmware: string; fwHold: boolean }[] = [];
+    for await (const d of t('Doors').listEntities<any>()) {
+      if (!only || d.rowKey === only) {
+        doors.push({
+          id: String(d.rowKey),
+          name: String(d.name ?? d.rowKey),
+          firmware: String(d.firmware ?? ''),
+          fwHold: d.fwHold === true,
+        });
+      }
+    }
+    if (only && doors.length === 0) return { status: 404, jsonBody: { error: 'no such door' } };
+
+    const out: any[] = [];
+    for (const door of doors) {
+      const rows = await scan('EventsByDoor', (m) => `${door.id}-${m}`, range, MAX_ROWS);
+
+      // Boots, oldest first, so each firmware event can be matched to the next
+      // one after it.
+      const boots = rows
+        .filter((r) => r.type === EventType.Boot)
+        .map((r) => Date.parse(r.at))
+        .sort((a, b) => a - b);
+
+      const events = rows
+        .filter((r) => r.type === EventType.FirmwareUpdated || r.type === EventType.FirmwareFailed)
+        .map((r) => {
+          const at = Date.parse(r.at);
+          // DID THE DOOR COME BACK? A successful flash is followed by a reboot,
+          // so the next boot event is the evidence the new image actually runs.
+          // Without this the report would say "updated" for a door that took an
+          // image and never came up again -- which is the failure that matters,
+          // and the one nobody would notice from a version number alone.
+          const nextBoot = boots.find((b) => b >= at);
+          const ok = r.type === EventType.FirmwareUpdated;
+          return {
+            at: r.at,
+            deviceId: door.id,
+            doorName: door.name,
+            // The device packs the transition into the credential field, e.g.
+            // "2.5.2>2.6.0", because a firmware event has no card.
+            change: r.cred || '',
+            from: r.cred?.includes('>') ? r.cred.split('>')[0] : '',
+            to: r.cred?.includes('>') ? r.cred.split('>')[1] : '',
+            succeeded: ok,
+            rebootedAt: nextBoot ? new Date(nextBoot).toISOString() : null,
+            // Only meaningful for a success: a failed update does not reboot, so
+            // the absence of a boot afterwards is expected rather than alarming.
+            confirmed: ok ? nextBoot !== undefined : null,
+            timeApprox: r.timeApprox,
+          };
+        });
+
+      out.push({
+        deviceId: door.id,
+        doorName: door.name,
+        running: door.firmware,
+        fwHold: door.fwHold,
+        events,
+      });
+    }
+
+    const all = out.flatMap((d) => d.events).sort((a, b) => (a.at < b.at ? 1 : -1));
+
+    return {
+      status: 200,
+      jsonBody: {
+        from: range.from.toISOString(),
+        to: range.to.toISOString(),
+        doors: out.sort((a, b) => String(a.doorName).localeCompare(String(b.doorName))),
+        events: all,
+        failures: all.filter((e) => !e.succeeded).length,
+        // A success with no reboot behind it is the one worth chasing: the door
+        // reported taking the image and has not been seen to start since.
+        unconfirmed: all.filter((e) => e.succeeded && e.confirmed === false).length,
+        note:
+          'A firmware update is only proven by the boot that follows it. "Unconfirmed" ' +
+          'means a door reported a successful flash but no start-up has been seen since ' +
+          '— either it is still rebooting, or it did not come back.',
+      },
+    };
+  },
+});
+
+// ---------------------------------------------------------------------------
 // Unattributed exits
 // ---------------------------------------------------------------------------
 

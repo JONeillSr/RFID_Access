@@ -32,7 +32,7 @@ Each route is one function that dispatches on method, with the role checked
 | `v1/admin/doors` | Viewer | Admin | — |
 | `v1/admin/doors/roster` | Viewer | — | — |
 | `v1/admin/doors/pairing-code` | — | Operator | — |
-| `v1/admin/reports/{person,door,unknown,unattributed-exits}` | Viewer | — | — |
+| `v1/admin/reports/{person,door,unknown,unattributed-exits,firmware}` | Viewer | — | — |
 
 `doors/roster` returns the effective roster a given door would receive — the
 group intersection resolved, which is the quickest way to answer "why can this
