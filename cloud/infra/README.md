@@ -260,10 +260,27 @@ $graph = az ad sp show --id 00000003-0000-0000-c000-000000000000 --query id -o t
 $role  = az ad sp show --id 00000003-0000-0000-c000-000000000000 `
   --query "appRoles[?value=='User.Read.All' && contains(allowedMemberTypes,'Application')].id" -o tsv
 
+# Let PowerShell build the JSON. Hand-escaping quotes through to az is the
+# fragile step -- it fails as an opaque "invalid request body" rather than
+# anything that points at the quoting.
+$body = @{ principalId = $mi; resourceId = $graph; appRoleId = $role } | ConvertTo-Json -Compress
+
 az rest --method POST `
   --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$mi/appRoleAssignments" `
-  --body "{`"principalId`":`"$mi`",`"resourceId`":`"$graph`",`"appRoleId`":`"$role`"}"
+  --body $body
 ```
+
+Confirm it took — expect `Microsoft Graph`:
+
+```powershell
+az rest --method GET `
+  --uri "https://graph.microsoft.com/v1.0/servicePrincipals/$mi/appRoleAssignments" `
+  --query "value[].resourceDisplayName" -o tsv
+```
+
+Check the role query returns **exactly one** id before running the POST. More
+than one line means the filter matched a delegated role as well, and the
+assignment will fail or grant the wrong thing.
 
 `User.Read.All` as an **application** permission requires admin consent, which
 the command above performs if you hold Global Administrator or Privileged Role
