@@ -94,6 +94,28 @@
 // re-checking.
 #define CLOUD_HOST_DEFAULT "jtc-prod-rfidaccess-eastus2-func.azurewebsites.net"
 
+// When to call NTP unreachable on /status.
+//
+// DERIVED FROM THE SDK, NOT PICKED. The first version of this used a flat two
+// hours on the assumption that ESP-IDF re-polls hourly. It does not: the
+// installed framework sets CONFIG_LWIP_SNTP_UPDATE_DELAY to 10800000 ms, so the
+// real interval is THREE hours. A two-hour threshold therefore reported
+// "unreachable - drifting" on every healthy door for a third of every cycle --
+// and a warning that fires on working hardware is worse than no warning at all,
+// because it trains people to ignore the one that matters.
+//
+// Deriving it means the threshold follows the SDK if that default ever changes,
+// instead of silently becoming wrong again.
+//
+// Two intervals plus ten minutes: one missed poll is a WiFi blip and not worth
+// shouting about, two consecutive misses is a real signal.
+#ifdef CONFIG_LWIP_SNTP_UPDATE_DELAY
+  static const uint32_t NTP_POLL_S  = CONFIG_LWIP_SNTP_UPDATE_DELAY / 1000;
+#else
+  static const uint32_t NTP_POLL_S  = 3600;   // conservative if the SDK is silent
+#endif
+static const uint32_t NTP_STALE_S = NTP_POLL_S * 2 + 600;
+
 // -- Globals ------------------------------------------------------------------
 // Clock & Data is the P-series' native output on Net2 wiring; pass
 // PaxtonReader::WIEGAND instead if the reader has been switched to Wiegand
@@ -641,10 +663,17 @@ void setup() {
                     // warm reset, so it is real but nothing has confirmed it.
                     body += " (no NTP sync this boot - unverified)\n";
                 } else {
-                    String ago = since < 90        ? String(since) + "s"
-                               : since < 5400      ? String(since / 60) + "m"
-                                                   : String(since / 3600) + "h";
-                    body += (since > 7200)
+                    // Hours carry their minutes. The earlier form switched to a
+                    // bare "Nh" at 90 minutes, so 88m became "1h" -- a LARGER
+                    // elapsed time rendering as a smaller-looking number. It
+                    // fooled a parser watching for the counter to reset, and it
+                    // would fool a person reading the page for the same reason.
+                    String ago;
+                    if      (since < 90)   ago = String(since) + "s";
+                    else if (since < 3600) ago = String(since / 60) + "m";
+                    else                   ago = String(since / 3600) + "h " +
+                                                 String((since % 3600) / 60) + "m";
+                    body += (since > NTP_STALE_S)
                         ? " (NTP unreachable for " + ago + " - drifting)\n"
                         : " (NTP synced " + ago + " ago)\n";
                 }
