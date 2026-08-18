@@ -229,6 +229,11 @@ bool CloudSync::syncOnce(String& err) {
     if (WiFi.status() != WL_CONNECTED) { err = "wifi down"; return false; }
     if (ESP.getFreeHeap() < MIN_FREE_HEAP) { err = "low heap, skipping"; return false; }
 
+    // Set if the roster could not be applied. The sync still reports failure so
+    // backoff and the failure counter behave, but the firmware offer below is
+    // evaluated first -- see the comment at the roster write.
+    bool rosterFailed = false;
+
     lock();
     String key = _deviceKey;
     unlock();
@@ -340,21 +345,42 @@ bool CloudSync::syncOnce(String& err) {
         delete[] creds;
         delete[] names;
 
-        if (!ok) { err = "roster write failed"; return false; }
+        if (!ok) {
+            // Carry the heap state. The bare message cost most of an
+            // investigation once: it does not say whether the write failed for
+            // memory or for filesystem reasons, and free heap alone looked
+            // healthy while the largest contiguous block was the real limit.
+            err = "roster write failed (" + String(ESP.getFreeHeap() / 1024) +
+                  " KB free, largest block " + String(ESP.getMaxAllocHeap() / 1024) +
+                  " KB, " + String(i) + " entries)";
+
+            // DO NOT return here. Events stay unacked -- correct, nothing was
+            // applied -- but the firmware offer below must still be considered.
+            //
+            // Returning early created a deadlock: a door that cannot apply a
+            // roster never reaches the offer that would fix it, so it cannot
+            // self-heal and needs a reboot or a cable. The door least able to
+            // update is exactly the one that most needs the update, and that is
+            // precisely the case the early return locked out.
+            rosterFailed = true;
+        }
     }
 
-    // Only now discard events: the backend has them durably, and the roster
-    // applied cleanly.
-    uint32_t ackBoot = resp["ackBootId"] | 0;
-    uint32_t ackIdx  = resp["ackIdx"] | 0;
-    if (n > 0 && (ackBoot != 0 || ackIdx != 0)) {
-        eventLog.ack(ackBoot, ackIdx);
-    }
+    // Only discard events once the roster applied cleanly. If it did not, the
+    // backend still holds them and will be sent them again -- losing them here
+    // to a failure the door already knows about would be the worst of both.
+    if (!rosterFailed) {
+        uint32_t ackBoot = resp["ackBootId"] | 0;
+        uint32_t ackIdx  = resp["ackIdx"] | 0;
+        if (n > 0 && (ackBoot != 0 || ackIdx != 0)) {
+            eventLog.ack(ackBoot, ackIdx);
+        }
 
-    lock();
-    _status.eventsSent += (uint32_t)n;
-    _status.rosterRev = resp["rosterRev"] | _status.rosterRev;
-    unlock();
+        lock();
+        _status.eventsSent += (uint32_t)n;
+        _status.rosterRev = resp["rosterRev"] | _status.rosterRev;
+        unlock();
+    }
 
     // ---- firmware offer ----------------------------------------------------
     // Everything above has already succeeded, so the sync counts as good even if
@@ -383,14 +409,14 @@ bool CloudSync::syncOnce(String& err) {
             eventLog.append(EventLog::EVT_FW_FAILED, EventLog::R_NONE, false,
                             fwVersion.c_str());
             lock(); _status.fwNote = m; unlock();
-            return true;
+            return !rosterFailed;
         }
 
         // GATE 2 - already running it. Guards against a version that was
         // published, applied, then re-offered from a stale record.
         if (fwVersion == FW_VERSION) {
             lock(); _status.fwNote = ""; unlock();
-            return true;
+            return !rosterFailed;
         }
 
         // GATE 3 - is the door safe to restart? Never interrupt a release or a
@@ -399,13 +425,13 @@ bool CloudSync::syncOnce(String& err) {
             String m = "not applied - no safety check wired, OTA disabled";
             say("[ota] " + m);
             lock(); _status.fwNote = m; unlock();
-            return true;
+            return !rosterFailed;
         }
         if (!_safeToUpdate()) {
             String m = "deferred " + fwVersion + " - door not idle";
             say("[ota] " + m);
             lock(); _status.fwNote = m; unlock();
-            return true;
+            return !rosterFailed;
         }
 
         // Do NOT download from here. This function still owns a live
@@ -427,7 +453,7 @@ bool CloudSync::syncOnce(String& err) {
         lock(); _status.fwNote = ""; unlock();
     }
 
-    return true;
+    return !rosterFailed;
 }
 
 // -----------------------------------------------------------------------------
@@ -628,7 +654,15 @@ void CloudSync::task(void* pv) {
         // Applied HERE, not inside syncOnce(): by this point syncOnce has
         // returned and its WiFiClientSecure has been destroyed, so the OTA gets
         // the heap to itself.
-        if (ok && fwVersion.length()) {
+        //
+        // Deliberately NOT gated on `ok`. A queued version got there by passing
+        // every gate inside syncOnce, so the offer is sound whatever else in that
+        // sync went wrong. Requiring success completed a deadlock: a door failing
+        // to apply rosters reported failure, the update that fixed it was
+        // therefore never applied, and it could not recover without a reboot or a
+        // cable. A door that cannot sync properly is the one that most needs the
+        // new image, not the one to withhold it from.
+        if (fwVersion.length()) {
             self->say("[ota] downloading " + fwVersion + " from " + fwUrl);
             self->lock(); self->_status.fwNote = "downloading " + fwVersion; self->unlock();
 

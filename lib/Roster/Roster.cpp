@@ -251,31 +251,56 @@ bool Roster::remove(const char* credential) {
 
 bool Roster::replaceAll(const Entry* entries, size_t n, uint32_t rev) {
     if (n > MAX_ENTRIES) return false;
+    if (!_entries) return false;          // begin() failed; nothing to write into
 
-    // Build the replacement completely before touching the live array, so a
-    // failure part-way leaves the existing roster intact.
-    Entry* staged = (Entry*)calloc(MAX_ENTRIES, sizeof(Entry));
-    if (!staged) return false;
-    if (n) memcpy(staged, entries, n * sizeof(Entry));
+    // WHY THIS SORTS A SMALL SCRATCH BUFFER RATHER THAN A SECOND FULL ARRAY
+    //
+    // This used to calloc MAX_ENTRIES (512 * 48 B = 24 KB) and swap it in. That
+    // meant asking for 24 KB CONTIGUOUS while the live array of the same size
+    // was still held -- 48 KB of demand to store a roster that is typically a
+    // few hundred bytes -- and asking for it at the worst possible moment: this
+    // is called from the sync path with the TLS context (~45 KB) still
+    // allocated, when the heap is at its most fragmented.
+    //
+    // It failed in service. Both doors reported "roster write failed" while
+    // /status showed ~130 KB free, because free heap was never the constraint --
+    // the largest contiguous block was under 40 KB and falling during a sync.
+    // The roster then never applied, the revision never advanced, and the
+    // backend re-sent the same update every poll: access changes silently
+    // stopped reaching the doors while every door looked healthy.
+    //
+    // Scratch is n entries, not MAX_ENTRIES: 240 bytes for a 5-fob roster. The
+    // live array keeps its full capacity because add() memmoves within it and
+    // relies on room up to MAX_ENTRIES.
+    Entry* scratch = nullptr;
+    if (n) {
+        scratch = (Entry*)malloc(n * sizeof(Entry));
+        if (!scratch) return false;
+        memcpy(scratch, entries, n * sizeof(Entry));
 
-    // Sort by hash (insertion sort: n is small and the input is usually close to
-    // ordered already).
-    for (size_t i = 1; i < n; i++) {
-        Entry key = staged[i];
-        size_t j = i;
-        while (j > 0 && staged[j - 1].hash > key.hash) { staged[j] = staged[j - 1]; j--; }
-        staged[j] = key;
+        // Sort by hash (insertion sort: n is small and the input is usually
+        // close to ordered already).
+        for (size_t i = 1; i < n; i++) {
+            Entry key = scratch[i];
+            size_t j = i;
+            while (j > 0 && scratch[j - 1].hash > key.hash) { scratch[j] = scratch[j - 1]; j--; }
+            scratch[j] = key;
+        }
     }
 
+    // Copy into the live array under the lock. The decision path takes the same
+    // lock, so it never observes a half-written roster -- the same guarantee the
+    // pointer swap gave, without the second allocation.
     lock();
-    Entry* old = _entries;
-    _entries = staged;                    // the swap the decision path races with
+    if (n) memcpy(_entries, scratch, n * sizeof(Entry));
+    // Clear the tail so stale entries cannot be read if _count is ever wrong.
+    if (n < MAX_ENTRIES) memset(_entries + n, 0, (MAX_ENTRIES - n) * sizeof(Entry));
     _count   = n;
     _rev     = rev;
     bool ok  = save();
     unlock();
 
-    free(old);
+    free(scratch);
     return ok;
 }
 
