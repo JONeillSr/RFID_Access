@@ -24,7 +24,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import { TableClient, odata } from '@azure/data-tables';
 import { DefaultAzureCredential } from '@azure/identity';
 import { requireRole, isDenied } from '../adminAuth';
-import { invertedTs, monthKey } from '../storage';
+import { invertedTs, monthKey, listFirmware } from '../storage';
 import { EventType } from '../../../shared/types';
 
 const account = process.env.STORAGE_ACCOUNT_NAME!;
@@ -242,6 +242,92 @@ app.http('reportUnknown', {
         from: range.from.toISOString(),
         to: range.to.toISOString(),
         cards: [...seen.values()],
+      },
+    };
+  },
+});
+
+// ---------------------------------------------------------------------------
+// What is on offer — the published images, and who would actually receive them
+// ---------------------------------------------------------------------------
+
+app.http('reportFirmwareAvailable', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'v1/admin/reports/firmware-available',
+  handler: async (req: HttpRequest): Promise<HttpResponseInit> => {
+    const auth = await requireRole(req, 'Viewer');
+    if (isDenied(auth)) return auth.denied;
+
+    // Same helper the publish tool's --list uses, so the page and the CLI cannot
+    // drift into disagreeing about what is published.
+    const published = await listFirmware();
+
+    const doors: any[] = [];
+    for await (const d of t('Doors').listEntities<any>()) {
+      doors.push({
+        deviceId: String(d.rowKey),
+        name: String(d.name ?? d.rowKey),
+        board: String(d.board ?? ''),
+        firmware: String(d.firmware ?? ''),
+        fwHold: d.fwHold === true,
+      });
+    }
+
+    // A published version answers little on its own. What matters is which doors
+    // would be OFFERED it on their next check-in, because the device decides:
+    // it declines a board that is not its own, and a hold stops the offer
+    // entirely. Pairing the two is the report.
+    const boards = new Map<string, any>();
+    for (const f of published) {
+      boards.set(f.board, {
+        board: f.board,
+        version: f.version,
+        sizeBytes: f.sizeBytes,
+        publishedAt: f.publishedAt,
+        sha256: f.sha256,
+        doors: 0, onVersion: 0, wouldBeOffered: 0, held: 0, doorNames: [] as string[],
+      });
+    }
+
+    // Doors whose board has nothing published can never update at all. That is
+    // invisible from a list of published images, because the row simply is not
+    // there -- the absence is the finding.
+    const unservedBoards = new Map<string, string[]>();
+
+    for (const d of doors) {
+      const b = boards.get(d.board);
+      if (!b) {
+        if (d.board) {
+          const list = unservedBoards.get(d.board) ?? [];
+          list.push(d.name);
+          unservedBoards.set(d.board, list);
+        }
+        continue;
+      }
+      b.doors++;
+      b.doorNames.push(d.name);
+      if (d.firmware === b.version) b.onVersion++;
+      else if (d.fwHold) b.held++;
+      else b.wouldBeOffered++;
+    }
+
+    const rows = [...boards.values()].sort((a, b) => a.board.localeCompare(b.board));
+
+    return {
+      status: 200,
+      jsonBody: {
+        published: rows,
+        // A published image for a board nothing runs is the trap worth naming:
+        // it sits waiting for the first door of that type to pair, and an OTA
+        // failure needs physical access to recover.
+        unusedBoards: rows.filter((r) => r.doors === 0).map((r) => r.board),
+        unservedBoards: [...unservedBoards.entries()].map(([board, doorNames]) => ({
+          board, doorNames,
+        })),
+        note:
+          'A device is only ever offered the image published for its own board, and ' +
+          'refuses any other. A door on hold is offered nothing until the hold is cleared.',
       },
     };
   },

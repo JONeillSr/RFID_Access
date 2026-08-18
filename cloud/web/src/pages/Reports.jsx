@@ -47,7 +47,15 @@ export function Reports({ notify }) {
       // Fleet-wide by default: "has every door taken this release?" is the
       // question, and it cannot be answered one door at a time.
       if (deviceId) params.set('deviceId', deviceId);
-      path = `/v1/admin/reports/firmware?${params}`;
+      setBusy(true);
+      Promise.all([
+        api(`/v1/admin/reports/firmware?${params}`),
+        api('/v1/admin/reports/firmware-available'),
+      ])
+        .then(([hist, avail]) => setData({ ...hist, avail }))
+        .catch(notify)
+        .finally(() => setBusy(false));
+      return;
     } else if (personId) {
       params.set('personId', personId);
       if (deviceId) params.set('deviceId', deviceId);
@@ -120,6 +128,69 @@ export function Reports({ notify }) {
 }
 
 /**
+ * What is currently on offer — the same thing `npm run publish-fw -- --list`
+ * shows, read from the same helper so the two cannot disagree.
+ *
+ * The version alone answers little, so each row carries who would actually
+ * receive it on their next check-in. A device is only ever offered the image
+ * published for its own board and refuses any other, and a held door is offered
+ * nothing at all — so "published" and "will be delivered" are different claims.
+ */
+function Available({ avail }) {
+  const rows = avail.published ?? [];
+
+  return (
+    <>
+      <h3>Available to devices on check-in</h3>
+      {rows.length === 0
+        ? <p class="muted">Nothing published yet. No door can update until an image exists for its board.</p>
+        : <Table
+            headers={['Board', 'Version', 'Size', 'Published', 'Doors on this board']}
+            rows={rows.map((r) => [
+              <code>{r.board}</code>,
+              <strong>{r.version}</strong>,
+              `${Math.round(r.sizeBytes / 1024)} KB`,
+              new Date(r.publishedAt).toLocaleString(),
+              r.doors === 0
+                ? <span class="muted">none run this board</span>
+                : <>
+                    {r.onVersion > 0 && <Pill kind="ok">{r.onVersion} up to date</Pill>}
+                    {r.wouldBeOffered > 0 && <Pill kind="warn">{r.wouldBeOffered} will be offered</Pill>}
+                    {r.held > 0 && <Pill>{r.held} held</Pill>}
+                  </>,
+            ])}
+          />}
+
+      {/* Doors whose board has nothing published cannot update at all. That is
+          invisible in a list of published images, because the row is simply
+          absent — the gap is the finding. */}
+      {avail.unservedBoards?.length > 0 && (
+        <div class="card">
+          <strong class="bad">Doors with no published image for their board.</strong>
+          <span class="muted">
+            {' '}These can never update until one is published for that board:{' '}
+            {avail.unservedBoards.map((u) => `${u.board} (${u.doorNames.join(', ')})`).join('; ')}.
+          </span>
+        </div>
+      )}
+
+      {avail.unusedBoards?.length > 0 && (
+        <div class="card">
+          <strong>Published for a board nothing runs:</strong>{' '}
+          <span class="muted">
+            {avail.unusedBoards.map((b) => <code key={b}>{b}</code>).reduce((a, b) => [a, ', ', b])}.
+            Harmless, but it is an untested image waiting for the first door of that
+            type to pair — and an OTA failure needs physical access to recover.
+          </span>
+        </div>
+      )}
+
+      <p class="muted">{avail.note}</p>
+    </>
+  );
+}
+
+/**
  * Firmware history.
  *
  * Leads with what every door is running right now, because that is the question
@@ -129,9 +200,12 @@ export function Reports({ notify }) {
 function Firmware({ data }) {
   const doors = data.doors ?? [];
   const versions = [...new Set(doors.map((d) => d.running).filter(Boolean))];
+  const avail = data.avail;
 
   return (
     <>
+      {avail && <Available avail={avail} />}
+
       <h3>What each door is running</h3>
       <Table
         headers={['Door', 'Running', 'Updates in window', 'State']}
