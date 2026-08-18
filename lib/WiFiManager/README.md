@@ -50,10 +50,28 @@ wifiMgr.isProvisioning();   // true while the portal AP is up
 wifiMgr.localIP();
 wifiMgr.getHostname();
 wifiMgr.clearCredentials(); // wipe NVS credentials and reboot into the portal
+
+WiFiManager::secsSinceTimeSync();   // static; -1 if NTP has never succeeded
 ```
 
 Unset features cost nothing: no hostname → mDNS never starts; no timezone →
 SNTP never starts.
+
+### Why `secsSinceTimeSync()` exists
+
+"The time looks right" and "the time is being maintained" are different claims,
+and without this only the first is visible. The clock free-runs on the crystal
+between syncs, so a device whose NTP has been unreachable for a day still shows
+a plausible time and nothing says otherwise.
+
+This was observed rather than imagined: a door spent 21.7 hours with all outbound
+UDP blocked while its status page went on reporting "NTP synced", because that
+label meant *has synced since boot*. Report the age instead, and treat anything
+past a couple of hours as suspicious — ESP-IDF re-polls roughly hourly, so
+consecutive misses mean it is genuinely not getting through.
+
+It is `static` because the SNTP notification callback is a bare C function
+pointer with no user-data argument, leaving nowhere to hang an instance.
 
 ## Behaviour notes
 

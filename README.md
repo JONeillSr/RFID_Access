@@ -223,6 +223,24 @@ not the strike — see Troubleshooting for the full story.
 - The **pioarduino** fork of the ESP32 platform — required for current
   ESP32-C6 support. This is pinned in `platformio.ini`, so PlatformIO fetches it
   automatically; no manual install needed.
+- Python, for the tools in `tools/` and for the git hooks below.
+
+### Enable the git hooks (once per clone)
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Git does not use tracked hooks until you point it at them, and nothing warns you
+— so a fresh clone silently has no protection until this is run.
+
+The hooks refuse to commit anything that looks like a **card number**, in file
+content and in commit messages alike. Fob numbers are credentials: anyone holding
+one can clone a working card. The `.gitignore` rules already keep `seed.json` and
+`*-fobs.json` out, but they protect known *files* — a number pasted into source
+as a placeholder walks straight past them, which is exactly how one reached a
+commit here. Run `python tools/check_card_numbers.py --all` to scan the whole
+tree by hand.
 
 ### Build environments
 
@@ -299,10 +317,40 @@ app-specific status fields.
 |------|---------|
 | `/` | main web UI (card enrolment) |
 | `/config` | fob management + unlock-schedule configuration |
-| `/setup` | device settings: splash hold, mDNS hostname, door name, site name; plus a **Reboot device** button |
+| `/setup` | device settings: splash hold, mDNS hostname, door name, site name, **backend host**, cloud pairing code; plus a **Reboot device** button |
 | `/api/schedule` | GET current schedule/state, POST to update |
 | `/api/add` `/api/rename` `/api/remove` | fob management (POST, JSON) |
-| `/status` | live status page: device ID, door and site, WiFi IP, mDNS name, uptime, OLED, reader counters, time, schedule, enrolled count, last tap |
+| `/api/list` `/api/taps` | roster and recent taps (GET, JSON) |
+| `/status` | live status page: device ID, door and site, WiFi IP, mDNS name, uptime, **heap**, OLED, reader counters, time **and how long since NTP**, schedule, enrolled count, backend host, cloud sync state, event spool, last tap |
+
+#### Write endpoints go read-only once a door is paired
+
+`/api/add`, `/api/rename`, `/api/remove` and `POST /api/schedule` answer **409**
+while a door is centrally managed, and `/config` shows a banner saying so. The
+read endpoints are untouched, so a door still explains itself locally even with
+the network gone.
+
+A controller that can enrol its own fobs while offline is an attack surface:
+anyone reaching one door's page could add themselves, and the central database
+would not know until it silently overwrote the entry on the next sync. It also
+leaves the roster with exactly one writer, so local and central cannot drift.
+
+The accepted cost is that a fob cannot be enrolled during a WAN outage — doors
+keep working from their cached rosters, but the fob list is frozen until the link
+returns. **Unpaired units keep full local control**, so a bench unit behaves
+exactly as it always did, and unpairing on `/setup` hands control back
+immediately without a reboot.
+
+#### The backend is runtime configuration
+
+The host a door reports to is stored in NVS and set on `/setup`, not compiled in.
+`CLOUD_HOST_DEFAULT` in `src/main.cpp` is only the value a door uses until told
+otherwise, so existing units need no migration.
+
+One image therefore serves every deployment. **Changing the host unpairs the
+door** — a device key is issued by the backend that minted it and is meaningless
+to another — so enter a pairing code from the new backend in the same submission.
+The host is applied first precisely so that works in one step.
 | `/footer.js` | shared footer the WebService module injects into every page |
 | `/update` | ElegantOTA firmware upload |
 | `/webserial` | live device log (self-refreshing); shows boot diagnostics and access events |
