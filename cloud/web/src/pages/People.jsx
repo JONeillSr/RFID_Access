@@ -77,13 +77,21 @@ export function People({ notify, flash }) {
       {entra && <EntraPanel entra={entra} notify={notify} flash={flash} onSaved={load} />}
 
       <Table
-        headers={['Person', 'Groups', 'Fobs', 'Status', '']}
+        headers={['Person', 'Managed by', 'Groups', 'Fobs', 'Status', '']}
         rows={people.map((p) => [
           <div>
             <strong>{p.name}</strong>
             {p.email && <div class="muted">{p.email}</div>}
             <div class="muted"><code>{p.personId}</code></div>
           </div>,
+          // Three states, not two. "Entra but unlinked" is the one worth seeing
+          // at a glance: it reads as covered by automatic revocation and is not.
+          p.managedBy === 'entra'
+            ? (String(p.entraObjectId ?? '').trim()
+                ? <Pill kind="ok">Entra</Pill>
+                : <><Pill kind="warn">Entra</Pill>
+                    <div class="bad" style="font-size:12px;margin-top:3px">not linked</div></>)
+            : <span class="muted">Local</span>,
           p.groups.length ? p.groups.join(', ') : <span class="muted">none</span>,
           <div>
             {(p.credentials ?? []).map((c) => (
@@ -97,7 +105,17 @@ export function People({ notify, flash }) {
             ))}
             {!(p.credentials ?? []).length && <span class="muted">no fobs</span>}
           </div>,
-          p.active ? <Pill kind="ok">active</Pill> : <Pill kind="warn">inactive</Pill>,
+          p.active
+            ? <Pill kind="ok">active</Pill>
+            : <><Pill kind="warn">inactive</Pill>
+                {/* Why, not just that. An inactive person with no explanation
+                    invites someone to reactivate them without knowing what
+                    turned them off. */}
+                {p.deactivatedReason && (
+                  <div class="muted" style="font-size:12px;margin-top:3px">
+                    {p.deactivatedReason}
+                  </div>
+                )}</>,
           canWrite ? (
             <div class="rowacts">
               <button class="small" onClick={() => setEditPerson({ ...p })}>Edit</button>
