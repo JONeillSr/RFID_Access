@@ -837,6 +837,67 @@ asked of it.
 Fixed in 2.7.2 (allocation) and 2.7.3 (deadlock). The write error now carries
 free heap, largest block and entry count, so a recurrence names its own cause.
 
+### Field failure: both doors dropped off Wi-Fi (2026-08-30, found 2026-09-16)
+
+Front Door went silent at 19:35 UTC on Aug 30. Test Door 1 went silent on Aug 31,
+recovered for about 100 minutes after rebooting on Sep 1, then went silent again
+at 17:01 UTC. It went unnoticed for **17 days**. Access kept working from cached
+rosters, and the roster was still at rev 18 on both sides, so no revocation was
+left stranded.
+
+The backend was healthy throughout. Every sync request that arrived returned 200
+— they simply stopped arriving. TLS was checked against the rotated certificate
+(Aug 29) on every axis testable from outside, and passed. The actual answer was
+that **the doors were not on the network**: neither answered ARP on the subnet,
+and Front Door was broadcasting the open `RFID-Setup` portal. The site Wi-Fi now
+runs 2.4/5/6 GHz and advertises WPA3-Personal. Whether the root cause was WPA3,
+a router change or changed credentials is still being confirmed.
+
+**Finding a door without its IP:** the device ID is the last three MAC bytes
+(`rfid-6f24f0` → `…6f:24:f0`), and its setup network's BSSID is that MAC plus one
+(`…6f:24:f1`). Sweep the subnet and look for the MAC in `arp -a`, or scan for the
+BSSID with `netsh wlan show networks mode=bssid`.
+
+#### ⚠️ No way to change a door's Wi-Fi once it is configured
+
+The setup portal is reachable only at boot, and only when the saved network
+cannot be joined — `startAP()` is called solely from `WiFiManager::begin()`.
+There is no Wi-Fi setting on `/setup`, no button and no reset.
+`WiFiManager::clearCredentials()` exists, but nothing calls it.
+
+The consequence is that **a door that is still connected cannot be moved to a new
+network at all.** The only routes are to take its old network away and then
+power-cycle it, or to erase it over USB. A router replacement, an SSID or password
+change, or a Phase 7 customer switching ISPs becomes a visit to every door — and
+some doors are above ceilings.
+
+What a fix has to get right:
+
+- **Try, then keep or revert.** Joining a new network from `/setup` risks a typo
+  stranding the door where nobody can reach it to correct it. Try the new
+  credentials, keep them only once the door has an address, and otherwise fall
+  back to the ones that worked.
+- **It must be authenticated.** An unauthenticated control that re-homes a door
+  is the open-portal problem below, reachable from the LAN instead of from radio
+  range.
+- **A physical way back** — for example, holding the exit button at power-on
+  opens the portal — so recovery does not depend on the network being up.
+
+#### Three more gaps from the same investigation
+
+- **The setup network is open.** Anyone in radio range of a door that has booted
+  without Wi-Fi can point it at a network they control. There, its
+  unauthenticated local web surface is theirs. The portal needs a password, a
+  physical trigger, or a time limit.
+- **`/update` has no authentication** (`ElegantOTA.begin()` with no credentials).
+  Combined with the gap above, that is firmware upload for anyone standing
+  outside the door.
+- **An offline door cannot say why, and nobody is told.** `EVT_SYNC_FAIL` is
+  defined but nothing in the current source appends it, so no reason reaches the
+  cloud even after a door reconnects. The dashboard did show both doors as not
+  checking in, but only to someone who looked. A door silent for more than a few
+  hours should notify someone rather than waiting to be noticed.
+
 ### Test log
 
 **#9 Offline — ✅ PASSED**, `2026-08-16T20:06:02Z` → `2026-08-17T17:51:12Z`
