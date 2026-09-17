@@ -278,7 +278,11 @@ export function isPersonless(type: EventType): boolean {
     // land in EventsByPerson under "unknown-YYYYMM" -- polluting the unknown-card
     // enrolment feed with version strings.
     type === EventType.FirmwareUpdated ||
-    type === EventType.FirmwareFailed
+    type === EventType.FirmwareFailed ||
+    // Door-position events are about the door too: a forced door has, by
+    // definition, nobody identified.
+    type === EventType.DoorForced ||
+    type === EventType.DoorHeld
   );
 }
 

@@ -139,9 +139,13 @@ export enum EventType {
   Boot       = 5,
   Config     = 6,
   SyncFail   = 7,
-  // Reserved for Phase 6 (door position sensing); keep numbering contiguous.
-  // DoorForced = 8,
-  // DoorHeld   = 9,
+  /** Door opened with no grant, exit press or unlock window in effect. */
+  DoorForced = 8,
+  /**
+   * Door held open past its limit (reason HeldOpen), or closed again after that
+   * (reason Closed, with `cred` holding how long it was open, e.g. "95s").
+   */
+  DoorHeld   = 9,
   /** OTA applied. `cred` carries the change, e.g. "2.4.4>2.5.0". */
   FirmwareUpdated = 10,
   /** OTA refused or failed. `cred` carries the target version. */
@@ -155,6 +159,12 @@ export enum EventReason {
   ExitButton  = 3,
   Schedule    = 4,
   NoTime      = 5,
+  /** Door forced: nothing released it. */
+  NoRelease   = 6,
+  /** Door held: open past the limit since the last release ended. */
+  HeldOpen    = 7,
+  /** Door held: closed again. */
+  Closed      = 8,
 }
 
 /** One event exactly as the device spooled it. */

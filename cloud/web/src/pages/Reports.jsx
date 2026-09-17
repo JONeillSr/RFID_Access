@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { useLocation, useSearch } from 'wouter-preact';
 import { api } from '../auth';
 import { Table, Pill, EventTime } from '../components/Table';
-import { describeEvent } from '../events';
+import { describeEvent, TAP } from '../events';
 
 /**
  * Filters live in the URL, so a report can be bookmarked or sent to someone —
@@ -112,7 +112,8 @@ export function Reports({ notify }) {
                 rows={data.events.map((e) => [
                   <EventTime e={e} />,
                   e.doorName,
-                  e.personName ?? (e.cred ? <code>{e.cred}</code> : '—'),
+                  // A card number only for taps; see Dashboard.
+                  e.personName ?? (e.type === TAP && e.cred ? <code>{e.cred}</code> : '—'),
                   describeEvent(e),
                 ])}
               />

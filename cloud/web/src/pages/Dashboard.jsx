@@ -2,7 +2,7 @@ import { useEffect, useState } from 'preact/hooks';
 import { api, atLeast } from '../auth';
 import { Table, Tile, EventTime } from '../components/Table';
 import { EnrollDialog } from '../components/EnrollDialog';
-import { describeEvent, TAP } from '../events';
+import { describeEvent, TAP, DOOR_FORCED } from '../events';
 
 /**
  * Fleet health at a glance.
@@ -15,6 +15,7 @@ import { describeEvent, TAP } from '../events';
 export function Dashboard({ notify, flash }) {
   const [doors, setDoors] = useState([]);
   const [recent, setRecent] = useState([]);
+  const [forced, setForced] = useState([]);
   const [unknown, setUnknown] = useState([]);
   const [people, setPeople] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -47,7 +48,12 @@ export function Dashboard({ notify, flash }) {
               .catch(() => [])
           )
         );
-        setRecent(per.flat().sort((a, b) => (a.at < b.at ? 1 : -1)).slice(0, 12));
+        const all = per.flat().sort((a, b) => (a.at < b.at ? 1 : -1));
+        setRecent(all.slice(0, 12));
+        // Taken from the whole window (the report's default, 7 days) before the
+        // recent list is cut to 12. A forced door must not drop off the dashboard
+        // just because the door has been busy since.
+        setForced(all.filter((e) => e.type === DOOR_FORCED));
       } catch (e) { setErr(e); }
   };
   useEffect(() => { load(); }, []);
@@ -67,6 +73,7 @@ export function Dashboard({ notify, flash }) {
         <Tile n={unpaired.length} label="unpaired" alert={unpaired.length > 0} />
         <Tile n={unknown.length} label="unknown cards seen" alert={unknown.length > 0} />
         <Tile n={denials.length} label="recent denials" />
+        <Tile n={forced.length} label="forced openings (7 days)" alert={forced.length > 0} />
       </div>
 
       {silent.length > 0 && (
@@ -83,6 +90,21 @@ export function Dashboard({ notify, flash }) {
               <span class="bad">last seen {d.silentMinutes} minutes ago</span>
             </div>
           ))}
+        </div>
+      )}
+
+      {forced.length > 0 && (
+        <div class="card">
+          <h3>Doors forced open</h3>
+          <p class="muted">
+            Each of these opened with no fob, no exit-button press and no unlock
+            window. On a door that can be opened from inside by its handle, a
+            normal exit looks the same until a request-to-exit sensor is fitted.
+          </p>
+          <Table
+            headers={['When', 'Door']}
+            rows={forced.map((e) => [<EventTime e={e} />, e.doorName])}
+          />
         </div>
       )}
 
@@ -127,7 +149,9 @@ export function Dashboard({ notify, flash }) {
         rows={recent.map((e) => [
           <EventTime e={e} />,
           e.doorName,
-          e.personName ?? (e.cred ? <code>{e.cred}</code> : '—'),
+          // The detail field is a card number only for taps; other events use it
+          // for a version, a duration or a setting, which describeEvent shows.
+          e.personName ?? (e.type === TAP && e.cred ? <code>{e.cred}</code> : '—'),
           describeEvent(e),
         ])}
       />
