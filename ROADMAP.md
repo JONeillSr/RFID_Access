@@ -559,38 +559,97 @@ watching it work on someone else.
 Setup — granting the Function App's identity `User.Read.All` — is in
 `cloud/infra/README.md`. Until consent exists the sweep fails open and says so.
 
-## Phase 6 — Door position sensing (hardware-gated)
+## Phase 6 — Door position sensing
 
-**Independent of Phases 3–5** and can land whenever the hardware exists; it needs
-no backend. Listed last only because it waits on parts.
+**Independent of Phases 3–5.** Detection is entirely on the door; showing it
+needs backend and web work (below).
 
 Today the firmware knows a *relay fired* — not that a door opened. Three states
 are invisible: a release nobody walks through, a door propped open after a
 legitimate release, and a door forced with no release at all. The exit button
 makes this sharper, because it releases the door with no record of who.
 
-**Hardware:** a reed contact (magnetic door-position switch) on the frame, one
-GPIO to ground with an internal pull-up — the same wiring pattern as the exit
-button. The classic ESP32 DevKit has spare pins; **the XIAO C6 does not** (Phase 1
-notes every pad is already in use), so C6 doors need an I/O expander or a board
-revision. That constraint should drive the next PCB spin.
+**Status (2026-09-17):** firmware **2.8.0** is on Test Door 1 (Front Door held at
+2.7.3). Backend and web are deployed. **No contact is fitted yet, so detection is
+unverified on hardware.** The rules pass 12 scenarios in a line-for-line
+JavaScript copy, but the C++ has only been compiled, not run. Next: bench test
+with a jumper from GPIO 33 to GND standing in for a closed door.
 
-**Firmware:**
+### Hardware
 
-- Two new `EventLog::Type` values, `EVT_DOOR_FORCED` and `EVT_DOOR_HELD`. The
-  enum is append-only by design, so the 40-byte record format does not change
-  and older spool files stay readable.
-- **Door forced** — contact opens with no grant and no exit press inside a short
-  window. This is the genuine security event.
-- **Door held open** — still open N seconds after the relay dropped. Usually
-  operational (a delivery, a propped door) rather than malicious, but it is what
-  makes a door-forced signal trustworthy by ruling out the benign case.
-- Both are local decisions on local state, so they work with no network — the
-  same rule as every other decision in this design.
+A reed contact (magnetic door-position switch) on the frame, one GPIO to ground
+with an internal pull-up — the same wiring pattern as the exit button.
 
-**Reporting:** door-forced belongs on the fleet-health surface, not buried in an
-event list. It also sharpens the *unattributed exits* report in Phase 5: with a
-contact fitted, a forced entry becomes distinguishable from a legitimate exit.
+- **The doors in service are ESP32 DevKit V1, which has spare GPIOs**, so they
+  can take a contact now. The earlier worry that there was no pin applied to the
+  XIAO C6, which is not what was deployed.
+  - DevKit V1: **GPIO 33**, beside the exit button on GPIO 32.
+  - ESP32-S3: GPIO 17.
+  - **XIAO C6 and ESP32-C3: no free pin.** Every usable GPIO is already
+    assigned. They need an I/O expander or a board revision, and that should
+    drive the next PCB spin.
+- **Use a contact that is CLOSED when the door is shut** (the usual kind for
+  access control). A cut or disconnected wire then reads as *open*, so tampering
+  with the contact raises "door forced" rather than silently reading "closed".
+- **Free mechanical egress will cause false "forced" alerts.** If the inside
+  lever opens the door without anyone touching the exit button — common, and
+  often required by fire code — the controller sees the door open with no
+  release. Before trusting "forced" on such a door, fit a request-to-exit input
+  that fires on egress: a REX switch in the lever, or a motion REX sensor. Either
+  can share the exit button's input. Confirm how each door actually behaves before
+  enabling the contact.
+
+### Firmware
+
+- **Off until enabled on `/setup`.** With nothing wired, a pulled-up input reads
+  "open", which would raise a forced alert at once. Enabling is an install-time
+  fact about the hardware, so it stays local to the door rather than coming from
+  the cloud.
+- Uses the two `EventLog::Type` values reserved for this, `EVT_DOOR_FORCED` (8)
+  and `EVT_DOOR_HELD` (9). The enum is append-only, so the 40-byte record format
+  does not change and older spool files stay readable.
+- **Door forced:** the contact opens while no release is in effect — no grant or
+  exit press within the relay hold plus a short grace, and no scheduled unlock
+  window open. This is the genuine security event. It asks for an immediate sync,
+  at most once a minute.
+- **Door held open:** open for longer than the configured time (default 60 s)
+  **since the last release ended**. So a door propped during a delivery is timed
+  from when the relay dropped, and a forced door from when it opened. A
+  scheduled unlock window suspends it. When a held door finally closes, a second
+  `EVT_DOOR_HELD` records how long it was open.
+- **A door already open at boot is not "forced":** no opening was seen. It can
+  still be held open.
+- The decision logic is a small state machine with no hardware in it
+  (`lib/DoorContact`), fed by the main loop. Both decisions are local, so they
+  work with no network — the same rule as every other decision in this design.
+
+### Backend and web
+
+Deployed 2026-09-17:
+
+- `DoorForced` (8) and `DoorHeld` (9) in `EventType`, with reasons `NoRelease`,
+  `HeldOpen` and `Closed`. Both are **personless**, so they are filed under the
+  door only — never under the person table's `unknown` partition, which feeds
+  the enrolment list.
+- **Door forced is on the dashboard, not buried in an event list:** a tile for
+  the last 7 days, and a list of each forced opening.
+- Event labels: "DOOR FORCED OPEN", "DOOR HELD OPEN", "closed after being held
+  open 95s". Config events show their detail, so switching the contact off on
+  `/setup` is visible in the door's history.
+- The Person column shows the detail field only for card taps. Firmware, config
+  and door events carry a version, setting or duration there, not a card number.
+
+Still to do: the *unattributed exits* report in Phase 5 gets sharper once a
+contact is fitted, because a forced entry becomes distinguishable from a
+legitimate exit.
+
+### Open gap: an offline door cannot raise the alarm
+
+A forced door is detected and recorded offline, but nobody hears about it until
+the door syncs again. That is the same "nobody is told" gap as the Aug 30 outage,
+and it matters more for this event than for any other. A local sounder at the
+door, and alerting that does not depend on someone opening the dashboard, are
+both worth considering before relying on this.
 
 ## Phase 7 — Multi-customer: one deployment per customer tenant
 
@@ -1030,3 +1089,67 @@ Still **untested**: the spool's overflow path. 5000 records needs 5000 taps, so
 this run never approached it. It drops the oldest event and is the only path that
 silently loses history, so it needs its own test with a temporarily lowered cap
 rather than being taken on trust.
+
+---
+
+## Hardware — PCB Rev 2
+
+The `RFID_Door_Controller` carrier (rev A) is in hand — five boards from JLCPCB,
+being hand-assembled with workarounds. Rev 2 folds in the fixes below. The
+generator (`hardware/tools/gen_board.py`) is **not** the source of truth for
+what was ordered: the rev-A `.kicad_pcb` carries hand tweaks made in the editor
+before ordering. **First step before cutting rev 2: reconcile those hand edits
+back into the generator**, or a regeneration silently discards them.
+
+### Root cause of the connector fixes
+
+Every header's pin order was generated from the **schematic net order**, never
+matched to the pinout of the **physical module it mates with**. So nearly every
+connector is scrambled against its part. The rev-2 rule is therefore not just
+the spot-fixes below but a pass over **every** connector — buck, OLED, panel
+LED, reader, exit button, strike — pinning each to its actual mating part, with
+**per-pin silkscreen labels on all of them**. (The polarity marks on the
+2-terminal parts — diodes, caps, transistor — are stock-footprint art and were
+verified correct; those are not affected.)
+
+Two of the four would **damage a part** if plugged in straight, so the rev-A
+boards must be wired by function, not seated directly:
+
+1. **Buck rows (J2/J10) — swap +/− on both rows.** The board puts `+` on the
+   left for both IN and OUT, but the symmetric LM2596 has IN and OUT on opposite
+   ends, so seating it forces an end-flip that swaps left↔right — no orientation
+   gets IN/OUT *and* polarity right at once. Put `+` on the right for both rows
+   and move the IN+/IN−/OUT+/OUT− silk to match. *(Rev A: wire the four terminals
+   to the same-named holes; never power it seated — one way reverse-feeds 12 V
+   into the buck, the other pushes 5 V backward into the board.)*
+2. **OLED header (J6) — reorder to GND-3.3V-SCL-SDA** to match the display
+   module (currently 3.3V-GND-SDA-SCL). *(Rev A: a straight cable **reverse-powers
+   the OLED** — cross the wires by function.)*
+3. **Panel LED (J7) — reorder to Red-GND-Green-Blue** to match the board-mount
+   RGB LED (currently Red-Green-Blue-GND). No damage risk; it just won't seat.
+4. **Relay (K1) — add silk note "bare relay only — driver onboard."** The
+   footprint is a bare SRD-05VDC relay; the driver (Q1/D3/R3/R4) is on the
+   board, so the whole relay *module* must not be jammed in. Cosmetic.
+
+*(The 1000 µF-input-cap idea was considered and dropped — C4's 100 µF is
+sufficient and the bigger can isn't wanted.)*
+
+### New requirement — door-contact (reed switch) connection point ⭐
+
+This is what makes **Phase 6 (Door position sensing)** deployable. The firmware,
+the `PIN_DOOR_CONTACT` pin map, and `lib/DoorContact` are already in place, but
+the rev-A board has **no terminal to land the contact on** — the input pin isn't
+broken out.
+
+Rev 2 adds a **new 2-pin terminal: door-contact signal + a GND**, for a reed
+(magnetic door-position) contact — internal pull-up, contact **closed when the
+door is shut**, exactly the exit-button wiring pattern. The signal pin per board:
+
+- **DevKit V1: GPIO 33** (beside the exit button on GPIO 32) — this is what the
+  production doors need.
+- **ESP32-S3: GPIO 17** (if an S3 socket is carried).
+- **XIAO C6 / ESP32-C3: no free pin** — every GPIO is assigned; they need an I/O
+  expander before a contact is possible. Unchanged from the Phase 6 notes.
+
+Wire it as its own terminal so the reed and its ground are a clean field
+connection, and give it per-pin silk (`DOOR`, `GND`) like the exit button.
