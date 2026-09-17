@@ -83,7 +83,42 @@ compile.
 npm install
 npm run build          # tsc
 npm run typecheck      # tsc --noEmit
+npm run check-event-time   # event-time resolution scenarios; needs a build first
 ```
+
+## Event times
+
+A door with no clock records uptime, not a time, so every stored event says how
+its time was established (`eventTime.ts`):
+
+| | Fields | Meaning |
+|---|---|---|
+| Observed | `timeApprox: false` | The door's clock was set. |
+| Derived | `timeApprox: true` | From the boot that reported it: that boot's start + uptime. |
+| Unknown | `timeUnknown: true`, `timeNotBefore`, `timeNotAfter` | From an **earlier** boot, whose start was never known. Only the window is true; `at` is a placement inside it so events still sort in the door's own order. |
+
+**Never display `at` for an unknown event as a time.** The web app renders every
+event time through one component (`EventTime` in `web/src/components/Table.jsx`)
+for that reason. Anything new that shows an event time should use it, or carry
+the bounds through the same way the reports do.
+
+The boot's start is stored once per boot on the door row (`bootId`, `bootEpoch`),
+so a retried sync dates the same events identically and writes the same keys.
+
+### Repairing rows stored by the old rule
+
+Before this, earlier-boot events were dated from the reporting boot's start, which
+put some in the future. The repair was run on 2026-09-16 (see the ROADMAP); it
+is kept for other deployments.
+
+```powershell
+npm run build
+npm run repair-event-times                                      # dry run: lists every change
+npm run repair-event-times -- --apply --backup $env:TEMP\event-times-backup.json
+```
+
+The backup contains **card numbers** and is refused anywhere inside the
+repository. Rerunning finds nothing once repaired.
 
 ## Seeding
 

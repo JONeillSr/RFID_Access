@@ -46,13 +46,32 @@ export async function sync(
   let ackBootId = 0;
   let ackIdx = 0;
 
+  // The start of the door's current boot, fixed once per boot.
+  //
+  // The door recomputes it on every request as (now - uptime), so it jitters by
+  // a second between syncs. Events with no clock are dated from it, and their
+  // storage keys include that date -- a jittering start would therefore move
+  // them between a failed write and its retry, and duplicate them. So the first
+  // value seen for a boot is kept and reused for the rest of that boot.
+  const reportedBootId = Number.isFinite(body.bootId) ? Number(body.bootId) : 0;
+  const reportedBootEpoch = body.bootEpoch > 0 ? body.bootEpoch : 0;
+  // Same boot number AND a start within a couple of minutes of the stored one.
+  // The number alone is not enough: a door whose filesystem is erased restarts
+  // its boot counter, and could reuse a number whose stored start is months old.
+  const sameBoot = door.bootId === reportedBootId && (door.bootEpoch ?? 0) > 0 &&
+    (reportedBootEpoch === 0 || Math.abs(door.bootEpoch! - reportedBootEpoch) <= 120);
+  const bootEpoch = sameBoot ? door.bootEpoch! : reportedBootEpoch;
+
   const events = Array.isArray(body.events) ? body.events : [];
   if (events.length > 0) {
     const { written, partial } = await ingestEvents(
       door.deviceId,
       door.name,
       events,
-      body.bootEpoch ?? 0
+      {
+        currentBootId: reportedBootId,
+        currentBootStartMs: bootEpoch > 0 ? bootEpoch * 1000 : undefined,
+      }
     );
 
     if (partial > 0) {
@@ -124,6 +143,9 @@ export async function sync(
     board: body.board,
     firmware: body.firmware,
     rosterRev: deviceRev,
+    // Only once the boot's start is actually known: storing 0 would pin a boot
+    // to "no clock" for its whole life even after NTP arrives.
+    ...(bootEpoch > 0 ? { bootId: reportedBootId, bootEpoch } : {}),
   });
 
   ctx.log(

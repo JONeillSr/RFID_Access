@@ -22,6 +22,7 @@ import type {
   StoredEvent,
 } from '../../shared/types';
 import { EventType } from '../../shared/types';
+import { resolveBatch, compareSequence } from './eventTime';
 
 const account = process.env.STORAGE_ACCOUNT_NAME;
 if (!account) throw new Error('STORAGE_ACCOUNT_NAME is not set');
@@ -158,7 +159,10 @@ export async function getDoor(deviceId: string): Promise<Door | undefined> {
 /** Record that a door checked in. Merge, so it never clobbers admin-set fields. */
 export async function touchDoor(
   deviceId: string,
-  patch: { board?: string; firmware?: string; rosterRev?: number }
+  patch: {
+    board?: string; firmware?: string; rosterRev?: number;
+    bootId?: number; bootEpoch?: number;
+  }
 ): Promise<void> {
   await table('Doors').upsertEntity(
     {
@@ -262,7 +266,7 @@ async function credentialIndex(): Promise<
 }
 
 /** Events that describe the door itself rather than a person's movement. */
-function isPersonless(type: EventType): boolean {
+export function isPersonless(type: EventType): boolean {
   return (
     type === EventType.Exit ||
     type === EventType.Boot ||
@@ -297,11 +301,48 @@ function isPersonless(type: EventType): boolean {
  * copied in now and never recomputed. Reassigning a fob later must not rewrite
  * who held it last Tuesday.
  */
+/**
+ * The latest time known for certain of any event that came before (bootId, idx)
+ * on this door, looking back a few months.
+ *
+ * Only called when a batch starts with events whose time is unknown and nothing
+ * in the batch precedes them -- which in practice means a door flushing an
+ * offline stretch, not the normal every-30-seconds sync.
+ *
+ * Sequence, not time, decides "before": the whole point is that the times of
+ * the events in question are the thing that cannot be trusted.
+ */
+async function latestKnownTimeBefore(
+  deviceId: string,
+  bootId: number,
+  idx: number,
+  nowMs: number
+): Promise<number | undefined> {
+  const now = new Date(nowMs);
+  for (let back = 0; back < 3; back++) {
+    const month = monthKey(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, 1)));
+    const pk = `${deviceId}-${month}`;
+    let best: number | undefined;
+    for await (const e of table('EventsByDoor').listEntities<any>({
+      // Observed times only. Derived ones are usually right, but "usually" is
+      // not good enough for the floor of a window someone may rely on.
+      queryOptions: { filter: odata`PartitionKey eq ${pk} and timeApprox eq false` },
+    })) {
+      if (compareSequence({ bootId: e.bootId, idx: e.idx }, { bootId, idx }) >= 0) continue;
+      const t = Date.parse(String(e.at));
+      if (Number.isFinite(t) && (best === undefined || t > best)) best = t;
+    }
+    // Newest month first: anything known in an older month is earlier still.
+    if (best !== undefined) return best;
+  }
+  return undefined;
+}
+
 export async function ingestEvents(
   deviceId: string,
   doorName: string,
   events: DeviceEvent[],
-  bootEpoch: number
+  boot: { currentBootId: number; currentBootStartMs?: number }
 ): Promise<{ written: number; partial: number }> {
   if (events.length === 0) return { written: 0, partial: 0 };
 
@@ -309,21 +350,28 @@ export async function ingestEvents(
   let written = 0;
   let partial = 0;
 
-  for (const ev of events) {
-    // Resolve the timestamp. epoch === 0 means the device had no trusted clock
-    // when this happened, so derive it from the boot epoch and mark it derived
-    // rather than presenting a guess as an observation.
-    let epochMs: number;
-    let approx = false;
-    if (ev.epoch > 0) {
-      epochMs = ev.epoch * 1000;
-    } else if (bootEpoch > 0) {
-      epochMs = bootEpoch * 1000 + ev.uptimeMs;
-      approx = true;
-    } else {
-      epochMs = Date.now();          // last resort: ingest time
-      approx = true;
+  // Decide when every event happened, as a batch: an event with no clock is
+  // bounded by its neighbours in the door's own sequence. See eventTime.ts for
+  // why only the CURRENT boot's start may date an event with no clock.
+  const nowMs = Date.now();
+  let times = resolveBatch(events, { ...boot, nowMs });
+
+  const unfloored = events
+    .map((ev, i) => ({ ev, t: times[i]! }))
+    .filter((x) => x.t.unknown && x.t.notBeforeMs === undefined)
+    .sort((a, b) => compareSequence(a.ev, b.ev))[0];
+  if (unfloored) {
+    const anchor = await latestKnownTimeBefore(deviceId, unfloored.ev.bootId, unfloored.ev.idx, nowMs);
+    if (anchor !== undefined) {
+      times = resolveBatch(events, { ...boot, nowMs, anchorBeforeMs: anchor });
     }
+  }
+
+  for (let n = 0; n < events.length; n++) {
+    const ev = events[n]!;
+    const t = times[n]!;
+    const epochMs = t.atMs;
+    const approx = t.approx;
 
     const at = new Date(epochMs);
     const month = monthKey(at);
@@ -349,6 +397,10 @@ export async function ingestEvents(
       personName: resolved?.personName,
       at: at.toISOString(),
       timeApprox: approx,
+      // Stated, never implied: a placement must not be read as a time.
+      timeUnknown: t.unknown,
+      ...(t.notBeforeMs !== undefined ? { timeNotBefore: new Date(t.notBeforeMs).toISOString() } : {}),
+      ...(t.notAfterMs !== undefined ? { timeNotAfter: new Date(t.notAfterMs).toISOString() } : {}),
     };
 
     // Personless events (exit presses, boots, schedule changes) have no sensible

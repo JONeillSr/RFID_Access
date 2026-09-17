@@ -55,6 +55,9 @@ export interface AuthedDoor {
   deviceId: string;
   name: string;
   site: string;
+  /** Boot recorded at the last sync, and its start (unix seconds). See Door. */
+  bootId?: number;
+  bootEpoch?: number;
 }
 
 /**
@@ -76,6 +79,9 @@ export async function authenticateDevice(
       deviceId,
       name: row.name ?? deviceId,
       site: row.site ?? '',
+      // Already on the row being read, so carrying it costs nothing extra.
+      bootId: typeof row.bootId === 'number' ? row.bootId : undefined,
+      bootEpoch: typeof row.bootEpoch === 'number' ? row.bootEpoch : undefined,
     };
   } catch {
     return undefined;                                    // unknown device

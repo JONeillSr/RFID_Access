@@ -116,6 +116,15 @@ export interface Door {
    * last, prove the image on an accessible one, then clear it.
    */
   fwHold?: boolean;
+  /**
+   * The boot the door was in at its last sync, and when that boot began (unix
+   * seconds). Recorded ONCE per boot and reused, because a door recomputes its
+   * boot start on every request and the value jitters by a second. Events with
+   * no clock are dated from it, so a jittering start would move their storage
+   * keys between retries and duplicate them.
+   */
+  bootId?: number;
+  bootEpoch?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,9 +187,22 @@ export interface StoredEvent extends Omit<DeviceEvent, 'timeApprox'> {
   personId?: string;
   personName?: string;
   credId?: string;
-  /** Resolved ISO timestamp. */
+  /**
+   * Resolved ISO timestamp -- or, when `timeUnknown` is true, only a PLACEMENT
+   * used for partitioning and sorting. Read the bounds instead in that case.
+   */
   at: string;
   timeApprox: boolean;
+  /**
+   * The door had no trusted clock and the time could not be derived. The event
+   * happened, in sequence order, somewhere between the bounds; `at` is not a
+   * claim about when. See api/src/eventTime.ts.
+   */
+  timeUnknown?: boolean;
+  /** ISO. Absent when nothing earlier with a known time exists. */
+  timeNotBefore?: string;
+  /** ISO. */
+  timeNotAfter?: string;
 }
 
 // ---------------------------------------------------------------------------
