@@ -849,9 +849,96 @@ The backend was healthy throughout. Every sync request that arrived returned 200
 — they simply stopped arriving. TLS was checked against the rotated certificate
 (Aug 29) on every axis testable from outside, and passed. The actual answer was
 that **the doors were not on the network**: neither answered ARP on the subnet,
-and Front Door was broadcasting the open `RFID-Setup` portal. The site Wi-Fi now
-runs 2.4/5/6 GHz and advertises WPA3-Personal. Whether the root cause was WPA3,
-a router change or changed credentials is still being confirmed.
+and Front Door was broadcasting the open `RFID-Setup` portal.
+
+**Recovery:** both doors were rejoined through the portal to **the same network
+with the same credentials** they had before, and came straight back (Test Door 1
+boot #24, Front Door boot #18, both fw 2.7.3, rev 18). So the network had not
+changed in a way the doors could not use — WPA3 and a router change were ruled
+out by that, not confirmed.
+
+#### Why a door stays in the portal: a one-way trap
+
+This is the mechanism, and it does not need anything to be wrong with the network
+for longer than a few seconds:
+
+1. At boot, `WiFiManager::begin()` tries the saved network for **10 s**
+   (`connectTimeoutMs`, left at its default by `wifiMgr("RFID-Setup")`).
+2. If that fails, it calls `startAP()` and the door becomes the setup portal.
+3. From then on `WiFiManager::loop()` returns immediately
+   (`if (_state != STATE_STA) return;`). **Nothing ever retries the saved
+   network.** Only someone joining the portal, or another reboot that happens to
+   find the network up, gets the door back.
+
+Any reboot that coincides with the network being unavailable for 10 s strands the
+door indefinitely. A power cut that also takes down the access point, or a
+router restart that overlaps a door rebooting, is enough.
+
+**The trigger was most likely power, though that is not proven.** The evidence
+that points that way:
+
+- The events recorded while offline had **no clock**. A software restart normally
+  keeps the ESP32's time; a power-on reset loses it (there is no battery-backed
+  RTC).
+- Front Door **rebooted twice while stuck** (boots 16 and 17 both logged offline),
+  which a door idle in its portal should not do on its own.
+- Test Door 1 rebooted at 15:01 and 15:20 UTC on Sep 1 (boots 21 and 22), synced
+  for about 100 minutes, and went silent at 17:01. Its next boot (#23) logged
+  events with no clock.
+
+**Fixed in firmware 2.7.4** (`lib/WiFiManager`, shared with FilamentTagReader).
+While the portal is up, the door retries its saved network in the background —
+the ESP32 can do both in `WIFI_AP_STA` — and reboots into normal operation as soon
+as it joins. That turns a 17-day outage into one that lasts about as long as the
+network does:
+
+- a 15 s attempt every 60 s, with the STA side stopped in between so the portal
+  keeps its radio;
+- a reboot on joining by **any** route, including the connect `begin()` started;
+- the boot after that waits 60 s rather than 10 s, so a network that is slow to
+  join cannot cause a reboot loop;
+- no attempts for 3 minutes after someone loads a portal page, because they may
+  be entering new credentials. Phones' automatic captive-portal probes do not
+  count, or a remembered phone in range would hold the retry off indefinitely.
+
+Details in `lib/WiFiManager/README.md` under *Leaving the portal*.
+
+**Still to verify on hardware:** block the door's Wi-Fi (or change the SSID's
+password on a test AP), reboot the door so it lands in the portal, restore the
+network, and confirm it returns without anyone touching it. Also confirm the
+portal stays usable from a phone during the retries.
+
+#### It also exposed a timestamp bug: 22 events dated in the future
+
+A door with no clock records uptime instead of a time, and ingest dated those
+events as *start of the boot that reported them* + uptime. That is only right for
+events from **that** boot. When Front Door came back on boot #18 and flushed taps
+recorded during boots 16 and 17, they were dated from boot 18's start — up to
+sixteen days in the future. Reports sorted them above today's activity.
+
+**Fixed in the backend** (`cloud/api/src/eventTime.ts`, tested by
+`npm run check-event-time`). Every event is now one of:
+
+| | When | Stored as |
+|---|---|---|
+| **Observed** | the door's clock was set | its time |
+| **Derived** | no clock, but from the boot that is reporting it, whose start is known | boot start + uptime, marked ≈ |
+| **Unknown** | anything else | `timeUnknown`, with the **window** it must lie in — after the last trustworthy event before it in the door's own sequence, before the next one (and never after it was received). `at` is only a placement inside that window, so it sorts in order. |
+
+Nothing is invented: an unknown event is shown as *"time unknown — between X and
+Y"*, never as a time. The boot's start is stored once per boot on the door row, so
+a retried sync resolves the same events to the same storage keys.
+
+**Existing rows repaired** with `npm run repair-event-times` (dry run first, then
+`--apply` with a backup written outside the repo before any change — it holds card
+numbers). 27 events: 25 on Front Door (boots 16–17) and 2 on Test Door 1 (boot 20,
+between Aug 27 15:22 and Sep 1 15:01 UTC; boot 23, between Sep 1 15:20 and Sep 16
+20:35 UTC). Verified afterwards: EventsByDoor 187 → 187 and EventsByPerson 55 → 55
+rows, none lost or duplicated, future-dated rows 22 → 0, every placement inside its
+window, sequence order preserved, and a rerun finds nothing to repair.
+
+The earlier reading of "three reboots on Sep 1" came from the bad timestamps and
+was wrong; the repaired sequence is the one above.
 
 **Finding a door without its IP:** the device ID is the last three MAC bytes
 (`rfid-6f24f0` → `…6f:24:f0`), and its setup network's BSSID is that MAC plus one
