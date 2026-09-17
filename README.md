@@ -24,6 +24,10 @@ firmware updates.
   de-energised (locked) whenever the controller is off or unpowered.
 - **Exit button** — request-to-exit input (push-to-make to GND) releases the
   door from the secure side, no fob needed.
+- **Door contact** *(new in 2.8.0; not yet tested with a contact fitted)* — an optional
+  magnetic contact on the frame reports a door **forced** open (opened with no
+  grant, exit press or unlock window) or **held open** too long. Off until
+  enabled on `/setup`. DevKit and S3 only; the C6 and C3 have no free input.
 - **Unlock schedule** — optionally holds the door unlocked during a configured
   time window on selected days (e.g. 08:00–17:00 weekdays), set from the web
   UI and stored in NVS. Time comes from NTP and the schedule **fails secure**:
@@ -65,6 +69,7 @@ firmware updates.
 | Paxton reader | P-series 125 kHz proximity, e.g. P50 / 345-110-US; Clock & Data output |
 | Pull-up resistors | 2× 10K, Data and Clock lines to a **clean 3.3 V rail** (not the ESP32's 3V3 pin — see wiring) |
 | Exit button | any normally-open momentary switch (e.g. 30 mm arcade button) |
+| Door contact *(optional)* | magnetic reed contact, **closed when the door is shut** |
 | SSD1306 OLED | 0.96", I²C, address `0x3C` |
 | Relay module | e.g. SONGLE SRD-05VDC-SL-C, active-LOW input with onboard driver + coil flyback diode |
 | Door strike | DC, fail-secure (e.g. RCI L65) |
@@ -122,6 +127,7 @@ reader's own LEDs.
 | Relay IN | 14 |
 | OLED SDA / SCL | 21 / 22 |
 | Exit button | 32 (to GND) |
+| Door contact | 33 (to GND) |
 | LED R / G / B | 25 / 26 / 27 |
 
 ### Paxton reader wiring
@@ -180,12 +186,32 @@ means the pair is swapped (swap the two wires and retest).
 Cable: Cat5 or Belden 8723 class, up to **100 m**. Past 25 m, double up the
 12V and 0V cores to limit voltage drop (Paxton's own guidance for Net2 runs).
 
-### Exit button and unlock schedule
+### Exit button, door contact and unlock schedule
 
 **Exit button:** any push-to-make button wired between `PIN_EXIT_BTN` and
 GND (internal pull-up; active low). Pressing it releases the door for the
 normal relay hold time — no fob required. Wiring is identical to the Net2's
 Exit/0V terminal pair.
+
+**Door contact** *(new in 2.8.0)*: a magnetic reed contact on the frame,
+wired between `PIN_DOOR_CONTACT` and GND (internal pull-up) — GPIO 33 on the
+DevKit, 17 on the S3. The C6 and C3 have no free input. Then set **Door contact →
+Fitted** on `/setup`. It is off by default because an unwired input reads as an
+open door.
+
+- Use a contact that is **closed when the door is shut**. A cut wire then reads
+  as open and raises an alert, instead of reading "closed" forever. (For the
+  other kind, set `DOOR_CONTACT_OPEN_LEVEL` to `LOW` in `src/Pins.h`.)
+- **Door forced** is reported when the door opens with no grant or exit press in
+  the last relay hold plus 2 s, and no unlock window open.
+- **Door held open** is reported when it stays open longer than the limit on
+  `/setup` (default 60 s) after the last release ended, and again with the total
+  time once it closes.
+- **If the door opens from inside without the exit button** (a lever handle),
+  every such exit reads as forced. Wire a request-to-exit switch or motion
+  sensor to the exit button input before relying on the forced alert.
+- Forced openings appear on the admin dashboard. See Phase 6 in `ROADMAP.md`
+  for what is verified so far.
 
 **Unlock schedule:** configured on the `/config` page — enable, start/end
 time, and days of week; an end time before the start time makes an overnight
@@ -323,7 +349,7 @@ app-specific status fields.
 |------|---------|
 | `/` | main web UI (card enrolment) |
 | `/config` | fob management + unlock-schedule configuration |
-| `/setup` | device settings: splash hold, mDNS hostname, door name, site name, **backend host**, cloud pairing code; plus a **Reboot device** button |
+| `/setup` | device settings: splash hold, mDNS hostname, door name, site name, door contact and held-open limit, **backend host**, cloud pairing code; plus a **Reboot device** button |
 | `/api/schedule` | GET current schedule/state, POST to update |
 | `/api/add` `/api/rename` `/api/remove` | fob management (POST, JSON) |
 | `/api/list` `/api/taps` | roster and recent taps (GET, JSON) |

@@ -59,6 +59,7 @@
 #include "Events.h"
 #include "AccessControl.h"
 #include "EventLog.h"
+#include "DoorContact.h"
 #include "CloudSync.h"
 #include "WebHandlers.h"
 #include "DeviceSettings.h"
@@ -69,6 +70,19 @@
 // Pin assignments live in Pins.h; only timing/behaviour constants are here.
 #define RELAY_HOLD_MS  3000       // how long the relay stays energised (ms)
 #define RESULT_HOLD_MS 4000       // how long a GRANTED/DENIED screen stays up (ms)
+
+// Door contact (see lib/DoorContact). How long after a release ends an opening
+// still counts as released: a door pulled right as the strike re-locks may not
+// part the magnet from the reed until a moment later, and that is not a forced
+// door. Short, because every second of it is a second a forced door is missed.
+#define DOOR_RELEASE_GRACE_MS   2000
+#define DOOR_HELD_DEFAULT_SEC   60
+// A forced door asks for an immediate sync, but no more than this often: a
+// chattering or cut contact must not turn into a stream of back-to-back syncs.
+#define DOOR_SYNC_MIN_GAP_MS    60000
+// Settings keys (NVS keys are <= 15 characters).
+static const char* const KEY_DOOR_CONTACT  = "doorContact";   // bool: a contact is fitted
+static const char* const KEY_DOOR_HELD_SEC = "doorHeldSec";   // uint: held-open limit, 0 = off
 
 // Short tag leading this project's device IDs, e.g. "rfid-a1b2c3". The rest of
 // the ID comes from the board's MAC, so every unit is unique with no per-door
@@ -153,6 +167,21 @@ static volatile unsigned long resultUntil = 0;
 // True while the unlock schedule is holding the door open. Set only from
 // loop(); read by the OLED idle screen and the /status provider.
 static volatile bool gSchedActive = false;
+
+#if PIN_DOOR_CONTACT >= 0
+// Door contact. The state machine is driven only from loop(); the web task only
+// reads its scalars for /status, and asks for a reload through gDoorReload rather
+// than touching it, since begin() racing update() would corrupt its state.
+static DoorContact   gDoor;
+static volatile bool gDoorContactOn = false;
+static volatile bool gDoorReload    = false;
+#endif
+
+// Until when an opening counts as released: set by every grant and exit press,
+// and by the end of an unlock window. gReleaseArmed stays false until the first
+// release, so a meaningless initial value can never excuse an opening.
+static volatile unsigned long gReleaseUntil = 0;
+static volatile bool          gReleaseArmed = false;
 
 // LittleFS mount result. The roster and the event spool live here, so a failed
 // mount is a real degradation worth surfacing rather than hiding: the door
@@ -336,7 +365,76 @@ static void buzzerDenied() {
 static void relayGrantedNonBlocking() {
     digitalWrite(PIN_RELAY, HIGH);
     relayOffAt = millis() + RELAY_HOLD_MS;
+    gReleaseUntil = millis() + RELAY_HOLD_MS + DOOR_RELEASE_GRACE_MS;
+    gReleaseArmed = true;
 }
+
+// -----------------------------------------------------------------------------
+//  Door contact
+// -----------------------------------------------------------------------------
+
+#if PIN_DOOR_CONTACT >= 0
+static bool doorContactReadsOpen() {
+    return digitalRead(PIN_DOOR_CONTACT) == DOOR_CONTACT_OPEN_LEVEL;
+}
+
+/// (Re)load the contact settings and restart the state machine from the pin's
+/// current reading. loop() only.
+static void doorContactLoad() {
+    gDoorContactOn = settings.getBool(KEY_DOOR_CONTACT, false);
+    uint32_t heldSec = settings.getUInt(KEY_DOOR_HELD_SEC, DOOR_HELD_DEFAULT_SEC);
+    if (gDoorContactOn) {
+        gDoor.begin(millis(), doorContactReadsOpen(), heldSec * 1000UL);
+        webService.log(String("[door] contact enabled on GPIO ") + PIN_DOOR_CONTACT +
+                       ", door " + (gDoor.isOpen() ? "OPEN" : "closed") +
+                       ", held-open limit " +
+                       (heldSec ? String(heldSec) + "s" : String("off")));
+    } else {
+        webService.log("[door] contact disabled");
+    }
+}
+
+/// One tick of the contact. loop() only.
+static void doorContactPoll() {
+    DoorContact::Inputs in;
+    in.rawOpen      = doorContactReadsOpen();
+    in.released     = relayOffAt != 0 ||
+                      (gReleaseArmed && (long)(millis() - gReleaseUntil) < 0);
+    in.scheduleOpen = gSchedActive;
+
+    switch (gDoor.update(millis(), in)) {
+    case DoorContact::FORCED: {
+        webService.log("[door] FORCED OPEN - no grant, exit press or unlock window");
+        eventLog.append(EventLog::EVT_DOOR_FORCED, EventLog::R_NO_RELEASE, false, "");
+        // The one event worth not waiting 30 s -- or a whole backoff -- to report.
+        static unsigned long lastSyncAsk = 0;
+        static bool          asked       = false;
+        if (!asked || millis() - lastSyncAsk >= DOOR_SYNC_MIN_GAP_MS) {
+            asked       = true;
+            lastSyncAsk = millis();
+            cloudSync.requestSyncNow();
+        }
+        break;
+    }
+    case DoorContact::HELD:
+        webService.log(String("[door] HELD OPEN past ") +
+                       String(gDoor.heldLimitMs() / 1000) + "s");
+        eventLog.append(EventLog::EVT_DOOR_HELD, EventLog::R_HELD_OPEN, false, "");
+        break;
+    case DoorContact::HELD_CLOSED: {
+        // Sized for any value so the compiler cannot see a truncation; the spool
+        // keeps 15 characters, and "4294967s" (the most a uint32 ms can say) is 8.
+        char open[24];
+        snprintf(open, sizeof(open), "%lus", (unsigned long)(gDoor.lastOpenMs() / 1000));
+        webService.log(String("[door] closed after being held open ") + open);
+        eventLog.append(EventLog::EVT_DOOR_HELD, EventLog::R_CLOSED, false, open);
+        break;
+    }
+    default:
+        break;
+    }
+}
+#endif
 
 /// Receives events from readerTask / the exit button and applies access logic.
 void accessTask(void* pv) {
@@ -480,6 +578,14 @@ void setup() {
     pinMode(PIN_EXIT_BTN, INPUT_PULLUP);
 #endif
 
+    // -- Door contact: off unless enabled on /setup. With nothing wired, the
+    // pulled-up input reads "open", which would be an instant forced alert. --
+#if PIN_DOOR_CONTACT >= 0
+    pinMode(PIN_DOOR_CONTACT, INPUT_PULLUP);
+    delay(5);                         // let the pull-up settle before the first read
+    doorContactLoad();
+#endif
+
     // -- WiFi callbacks reflect state on the OLED --
     wifiMgr.onConnected([]() {
         oledShowIP(WiFi.localIP().toString());
@@ -533,6 +639,34 @@ void setup() {
                     "takes effect after a reboot, since the responder is started at boot."
                     "</div>";
 
+            // ---- Door contact ----
+            html += "<h2>Door contact</h2>";
+#if PIN_DOOR_CONTACT >= 0
+            {
+                bool     on      = settings.getBool(KEY_DOOR_CONTACT, false);
+                uint32_t heldSec = settings.getUInt(KEY_DOOR_HELD_SEC, DOOR_HELD_DEFAULT_SEC);
+                html += "<label>Contact on GPIO " + String(PIN_DOOR_CONTACT) + "</label>";
+                html += "<select name='doorContact'>";
+                html += String("<option value='0'") + (on ? "" : " selected") + ">Not fitted</option>";
+                html += String("<option value='1'") + (on ? " selected" : "") + ">Fitted</option>";
+                html += "</select>";
+                html += "<div class='hint'>A magnetic contact on the frame, <b>closed when the door is "
+                        "shut</b>, between this pin and GND. Leave <b>Not fitted</b> until one is "
+                        "wired: an empty input reads as an open door and raises a forced alert.<br>"
+                        "If the door can be opened from inside without the exit button (a lever "
+                        "handle), expect false forced alerts until a request-to-exit switch or "
+                        "sensor is wired to the exit button input.</div>";
+                html += "<label>Held-open alert (seconds)</label>";
+                html += "<input type='number' name='doorHeldSec' min='0' max='3600' value='" +
+                        String(heldSec) + "'>";
+                html += "<div class='hint'>How long the door may stay open after a release ends "
+                        "before it is reported held open. 0 turns the held-open alert off; "
+                        "forced alerts still work.</div>";
+            }
+#else
+            html += "<div class='hint'>This board has no free input for a door contact.</div>";
+#endif
+
             // ---- Cloud pairing ----
             CloudSync::Status cs = cloudSync.status();
             html += "<h2>Cloud</h2>";
@@ -577,6 +711,29 @@ void setup() {
         webService.setSetupSaveHandler([](WebServer& s) {
             if (s.hasArg("doorName")) identity.setDoorName(s.arg("doorName"));
             if (s.hasArg("siteName")) identity.setSiteName(s.arg("siteName"));
+
+#if PIN_DOOR_CONTACT >= 0
+            // Recorded as a config event when it changes. /setup is not
+            // authenticated, and switching the contact off is exactly how someone
+            // would silence a forced-door alert -- so it must leave a trace.
+            if (s.hasArg("doorContact") || s.hasArg("doorHeldSec")) {
+                bool     wasOn   = settings.getBool(KEY_DOOR_CONTACT, false);
+                uint32_t wasHeld = settings.getUInt(KEY_DOOR_HELD_SEC, DOOR_HELD_DEFAULT_SEC);
+                bool     on      = s.hasArg("doorContact") ? s.arg("doorContact") == "1" : wasOn;
+                long     held    = s.hasArg("doorHeldSec") ? s.arg("doorHeldSec").toInt() : (long)wasHeld;
+                if (held < 0)    held = 0;
+                if (held > 3600) held = 3600;
+                if (on != wasOn || (uint32_t)held != wasHeld) {
+                    settings.setBool(KEY_DOOR_CONTACT, on);
+                    settings.setUInt(KEY_DOOR_HELD_SEC, (uint32_t)held);
+                    // At most "contact=1,3600s" (15), which the spool keeps whole.
+                    char detail[32];
+                    snprintf(detail, sizeof(detail), "contact=%d,%lds", on ? 1 : 0, held);
+                    eventLog.append(EventLog::EVT_CONFIG, EventLog::R_NONE, false, detail);
+                    gDoorReload = true;           // applied by loop(), not here
+                }
+            }
+#endif
 
             // The backend host is applied BEFORE any pairing code below, because
             // a code is issued by one deployment and redeemed against it. Pairing
@@ -694,6 +851,20 @@ void setup() {
             } else {
                 body += "Schedule: disabled\n";
             }
+#if PIN_DOOR_CONTACT >= 0
+            if (!gDoorContactOn) {
+                body += "Contact:  not fitted (enable on /setup)\n";
+            } else if (!gDoor.isOpen()) {
+                body += "Contact:  door closed\n";
+            } else {
+                body += "Contact:  door OPEN " + String(gDoor.openForMs(millis()) / 1000) + "s";
+                if (gDoor.forcedThisOpening()) body += "  [FORCED]";
+                if (gDoor.heldReported())      body += "  [HELD OPEN]";
+                body += "\n";
+            }
+#else
+            body += "Contact:  none (no free input on this board)\n";
+#endif
             body += "Enrolled: " + String(acCount()) + " card(s)\n";
             // Roster file size is the honest persistence check: a populated
             // in-RAM list with no file on disk means every reboot re-migrates
@@ -835,6 +1006,9 @@ void loop() {
             eventLog.append(EventLog::EVT_SCHED_ON, EventLog::R_SCHEDULE, true, "");
         } else {
             relayOffAt = 0;
+            // Someone pulling the door as the window closes is not forcing it.
+            gReleaseUntil = millis() + DOOR_RELEASE_GRACE_MS;
+            gReleaseArmed = true;
             digitalWrite(PIN_RELAY, LOW);           // window over: lock
             ledOff(); paxton.ledIdle();
             webService.log("[sched] unlock window ended - door locked");
@@ -856,6 +1030,16 @@ void loop() {
             paxton.ledIdle();      // reader back to amber "ready"
         }
     }
+
+    // Door contact, after the schedule and relay updates above so it judges an
+    // opening against the release state as of this tick.
+#if PIN_DOOR_CONTACT >= 0
+    if (gDoorReload) {
+        gDoorReload = false;
+        doorContactLoad();
+    }
+    if (gDoorContactOn) doorContactPoll();
+#endif
 
     // Non-blocking result-screen restore: once the GRANTED/DENIED screen has
     // held long enough, revert to the idle screen (IP or provisioning hint).

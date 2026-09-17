@@ -3,7 +3,8 @@
  * @brief   Project peripheral pin map for the RFID Access Control firmware.
  *
  * This is the PROJECT-SPECIFIC half of the hardware configuration: which GPIO
- * each peripheral (Paxton reader, relay, buzzer, OLED, RGB status LED) lands
+ * each peripheral (Paxton reader, relay, buzzer, OLED, RGB status LED, exit
+ * button, door contact) lands
  * on, for each supported board. It includes BoardConfig.h for the board-identity facts
  * (Wire1 availability, default I2C pins, strapping-pin warnings) and builds the
  * peripheral assignments on top.
@@ -62,6 +63,9 @@
     #define PIN_LED_G       D7      // GPIO17 — lights while door unlocked
     #define PIN_LED_B       -1      // no free pin
 
+    // Door contact: no free pad. Needs an I/O expander or a board revision.
+    #define PIN_DOOR_CONTACT -1
+
 // ============================================================================
 //  ESP32-C3 generic   (UNVERIFIED defaults — avoid 2/8/9/12-19)
 // ============================================================================
@@ -79,6 +83,7 @@
     #define PIN_LED_G       3
     #define PIN_LED_B       20
     #define PIN_EXIT_BTN    21      // shares UART0 TX — serial unusable when wired
+    #define PIN_DOOR_CONTACT -1     // no usable GPIO left (12-17 flash, 18/19 USB)
 
 // ============================================================================
 //  ESP32-S3 generic   (UNVERIFIED defaults — avoid 0/3/45/46, 19/20, 26-37)
@@ -97,6 +102,7 @@
     #define PIN_LED_G       7
     #define PIN_LED_B       15
     #define PIN_EXIT_BTN    16
+    #define PIN_DOOR_CONTACT 17     // not strapping, not USB, not flash/PSRAM
 
 // ============================================================================
 //  Classic ESP32 DevKit V1   (UNVERIFIED defaults — avoid 0/2/5/12/15, 6-11,
@@ -116,12 +122,24 @@
     #define PIN_LED_G       26
     #define PIN_LED_B       27
     #define PIN_EXIT_BTN    32
+    // Door contact beside the exit button on the header, same wiring pattern.
+    // Not 34-39: those are input-only with NO internal pull-up.
+    #define PIN_DOOR_CONTACT 33
 
 #endif
 
 // ────────────────────────────────────────────────────────────────────────────
 //  Cross-board peripheral facts (not pins)
 // ────────────────────────────────────────────────────────────────────────────
+
+// Door contact polarity: the level PIN_DOOR_CONTACT reads when the door is OPEN.
+// With the input pulled up, HIGH means the contact is open-circuit. Use a contact
+// that is CLOSED when the door is shut: a cut or unplugged wire then reads as an
+// open door -- a "forced" alert -- instead of silently reading "closed" forever.
+// Set to LOW only for a contact that closes when the door opens.
+#ifndef DOOR_CONTACT_OPEN_LEVEL
+#define DOOR_CONTACT_OPEN_LEVEL  HIGH
+#endif
 
 // OLED I2C address (same on every board for these panels).
 #define OLED_ADDR   0x3C

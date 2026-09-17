@@ -1,0 +1,6 @@
+{
+  "name": "DoorContact",
+  "version": "1.0.0",
+  "description": "Door-position decisions for an access-control door: forced open (opened with no release in effect) and held open (open past a limit since the last release ended). Debounced. Pure logic with no hardware or Arduino dependency; the caller reads the contact and supplies the release state.",
+  "dependencies": {}
+}

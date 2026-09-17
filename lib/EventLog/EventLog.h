@@ -63,8 +63,9 @@ public:
         EVT_BOOT       = 5,   // device started
         EVT_CONFIG     = 6,   // settings or roster changed locally
         EVT_SYNC_FAIL  = 7,   // a sync attempt failed (why, in reason)
-        // 8 and 9 are reserved for door position sensing (Phase 6) so the
-        // numbering stays contiguous with the plan.
+        EVT_DOOR_FORCED = 8,  // door opened with no release in effect
+        EVT_DOOR_HELD  = 9,   // door held open past the limit, or (R_CLOSED)
+                              // closed again after that; cred holds "<secs>s"
         EVT_FW_UPDATED = 10,  // OTA applied; cred holds "<old>><new>"
         EVT_FW_FAILED  = 11,  // OTA attempted and refused/failed; cred holds target
     };
@@ -78,6 +79,9 @@ public:
         R_EXIT_BUTTON   = 3,  // granted: request-to-exit
         R_SCHEDULE      = 4,  // granted: inside an unlock window
         R_NO_TIME       = 5,  // schedule inactive: clock never synced
+        R_NO_RELEASE    = 6,  // door forced: no grant, exit press or unlock window
+        R_HELD_OPEN     = 7,  // door held: open past the limit since release ended
+        R_CLOSED        = 8,  // door held: closed again; cred holds how long it was open
     };
 
     static const uint8_t F_GRANTED     = 0x01;
