@@ -43,6 +43,22 @@ the deploy root, which is how `logo.svg`, `favicon.svg` and
 The CLI also writes a `cloud/web/.env` holding your subscription and tenant ids.
 It is gitignored, and should stay that way.
 
+> **The prompt also appears when `az` has a different default subscription.**
+> The CLI looks the app up in `az`'s *default* subscription, not the one the app
+> is in, and appends that default to `.env` on every run — so correcting the file
+> does not stick, and neither `--app-name` nor `--subscription-id` gets past it.
+> Deploy with the token instead; it needs no lookup:
+>
+> ```powershell
+> $token = az staticwebapp secrets list --subscription <subscription> `
+>   --name <swa-name> --resource-group <rg> --query properties.apiKey -o tsv
+> npm run deploy -- --deployment-token $token
+> ```
+>
+> `<subscription>` should be the **id**, not the name, if two subscriptions
+> share a name. Confirm the deploy landed by checking that the live site's
+> `assets/index-*.js` matches the one in `dist/index.html`.
+
 ## How auth works
 
 The browser signs in with MSAL (authorization-code flow with PKCE) and calls the
