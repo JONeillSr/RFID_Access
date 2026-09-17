@@ -298,6 +298,12 @@ pio device monitor
    WiFi access point named `RFID-Setup`. Join it from a phone or laptop; a
    captive portal opens automatically (or browse to `http://192.168.4.1`). Pick
    your network, enter the password, and save. The device reboots and connects.
+
+   The same portal appears if the door boots while its saved network is down —
+   after a power cut, for example. **It does not need re-entering:** from 2.7.4
+   the door keeps retrying the saved network and returns on its own within a
+   couple of minutes of the network coming back. Earlier firmware stayed in the portal
+   until someone rejoined it.
 3. **Find the device.** Once connected, the OLED shows the hostname, the IP
    address, and the OTA hint. Out of the box the hostname is this board's unique
    device ID (`rfid-a1b2c3.local`) — read it off the OLED and browse to it, or

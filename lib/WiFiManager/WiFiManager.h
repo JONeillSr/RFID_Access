@@ -48,8 +48,10 @@ public:
     // After begin() returns, exactly one of isConnected() or isProvisioning() is true.
     void begin();
 
-    // Non-blocking: call from loop(). Handles STA reconnect only.
-    // AP/portal mode is driven by an internal task created in begin().
+    // Non-blocking: call from loop(). In STA mode, supervises reconnects. In
+    // portal mode, keeps retrying the saved network and reboots once it can be
+    // joined -- see retrySavedNetwork(). The portal itself is served by an
+    // internal task created in begin().
     void loop();
 
     bool isConnected()    const;
@@ -68,6 +70,14 @@ private:
     State         _state        = STATE_STA;
     bool          _wasConnected = false;
     unsigned long _lastCheck    = 0;
+
+    // Portal-mode retry of the saved network (see retrySavedNetwork()).
+    uint32_t _retryStartedMs = 0;           // 0 = no attempt in progress
+    uint32_t _lastRetryEndMs = 0;
+    // millis() of the last page a person loaded from the portal; 0 = never.
+    // Written by the portal task, read by the main loop: a 32-bit aligned
+    // load/store is atomic on ESP32.
+    volatile uint32_t _lastPortalUseMs = 0;
     String        _hostname     = "";       // empty = mDNS disabled
     String        _tzInfo       = "";       // empty = NTP time sync disabled
     String        _ntp1, _ntp2;             // NTP servers (set with _tzInfo)
@@ -89,6 +99,7 @@ private:
     void   startTimeSync();         // (re)start SNTP if a timezone is set
     void   startAP();
     void   stopAP();                // release portal server/DNS/task
+    void   retrySavedNetwork();     // portal mode: find the way back on our own
     void   setupPortalRoutes();
     String buildNetworkList();
     String buildPortalPage(const String& networkList, const String& errorMsg = "");

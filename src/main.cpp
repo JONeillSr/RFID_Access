@@ -19,7 +19,9 @@
  *
  * First boot (no stored WiFi credentials): WiFiManager starts an open AP named
  * "RFID-Setup"; connect and open http://192.168.4.1 to enter credentials. The
- * device saves them to NVS and reboots into STA mode.
+ * device saves them to NVS and reboots into STA mode. The same portal comes up
+ * when a configured door boots during a network outage; it then retries the
+ * saved network in the background and reboots once it can join.
  *
  * Reader: Paxton P-series proximity (e.g. P50 / 345-110-US), 12 V powered,
  * Clock & Data output (Paxton native; Wiegand also supported by the driver).

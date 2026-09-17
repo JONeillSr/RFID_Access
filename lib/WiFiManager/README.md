@@ -14,6 +14,9 @@ own the application's web/admin surface — that's a separate concern (see the
 - **STA lifecycle** — blocking first connect in `begin()` (with timeout and
   fallback to the portal), then non-blocking reconnect supervision from
   `loop()` at a 5 s cadence.
+- **The portal is not a dead end** — with saved credentials, `loop()` keeps
+  retrying the saved network while the portal is up, and reboots into normal
+  operation once it can join. See *Leaving the portal* below.
 - **mDNS** — optional; the device becomes reachable as
   `http://<hostname>.local`. The responder is restarted on every reconnect so
   it never goes stale.
@@ -42,7 +45,8 @@ wifiMgr.onProvisioningStarted([](){ ... });
 wifiMgr.begin();     // blocking: STA on stored credentials, else portal AP
 
 void loop() {
-    wifiMgr.loop();  // non-blocking reconnect supervision (STA mode only)
+    wifiMgr.loop();  // non-blocking: reconnects in STA mode; in portal mode,
+                     // retries the saved network and reboots once it joins
 }
 
 wifiMgr.isConnected();
@@ -102,6 +106,36 @@ One missed poll is a WiFi blip. Two consecutive misses is a signal.
 `secsSinceTimeSync()` is `static` because the SNTP notification callback is a
 bare C function pointer with no user-data argument, leaving nowhere to hang an
 instance.
+
+## Leaving the portal
+
+`begin()` gives the saved network 10 s (the constructor's `connectTimeoutMs`).
+Any boot that happens to fall inside a network outage — a power cut that also
+takes down the access point, a router restart — lands in the portal.
+
+**Earlier versions never left it.** `loop()` returned immediately in portal mode,
+so nothing tried the saved network again, and a device stayed in the portal until
+someone joined it and typed in the credentials it already had. Two access-control
+doors spent 17 days like that while still looking healthy at the door.
+
+Now, while the portal is up and credentials are saved:
+
+| | |
+|---|---|
+| Every 60 s | the saved network gets a 15 s attempt, then the STA side is stopped so the portal keeps its radio |
+| On joining — by that attempt or any other route | reboot. The application chooses what to start from the outcome of `begin()`, so a clean boot is the one path already proven. |
+| The boot after that | waits up to 60 s instead of 10 s, so a network that is slow to join cannot cause a reboot loop. Carried in `RTC_NOINIT` memory: survives the restart, not a power cut. |
+| After someone loads a portal page | no attempts for 3 min: they may be entering different credentials, and a scan during an attempt comes back empty |
+
+Captive-portal probes from phones deliberately do **not** count as someone using
+the portal. A phone that remembers the setup network probes it every few minutes
+on its own, and counting that would put off the retry for as long as the phone
+stays in range.
+
+The core's own auto-reconnect is switched off while the portal is up. It treats
+"network not found" as transient and retries back to back, which would keep the
+radio scanning for the whole time. Nothing switches it back on, because the portal
+is only ever left by rebooting.
 
 ## Behaviour notes
 

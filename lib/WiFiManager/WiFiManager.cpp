@@ -3,6 +3,25 @@
 
 static const uint8_t DNS_PORT = 53;
 
+// Portal-mode retry of the saved network. See retrySavedNetwork().
+static const uint32_t RETRY_INTERVAL_MS  = 60000;    // idle time between attempts
+static const uint32_t RETRY_WINDOW_MS    = 15000;    // how long each attempt gets
+static const uint32_t PORTAL_IN_USE_MS   = 180000;   // leave a person using it alone
+
+/**
+ * Set just before the reboot retrySavedNetwork() triggers, read once by the boot
+ * that follows. RTC_NOINIT memory survives a software restart but not a power
+ * cut, and powers up as garbage -- hence a magic value rather than a bool.
+ *
+ * It exists to stop a reboot loop. A network that takes longer to join than
+ * begin()'s normal timeout would otherwise go: time out -> portal -> the retry
+ * joins -> reboot -> time out again, forever. The boot after a recovery has
+ * just seen the network work, so it is worth waiting longer for.
+ */
+static const uint32_t RECOVERY_MAGIC              = 0x57494649;   // "WIFI"
+static const uint32_t RECOVERY_CONNECT_TIMEOUT_MS = 60000;
+static RTC_NOINIT_ATTR uint32_t s_recoveryBoot;
+
 /**
  * millis() of the last SUCCESSFUL SNTP update, 0 if there has never been one.
  *
@@ -251,11 +270,16 @@ String WiFiManager::buildSavedPage(const String& ssid) {
 
 void WiFiManager::setupPortalRoutes() {
     _portalServer->on("/", [this]() {
+        // Before the scan: an attempt starting mid-scan would spoil both.
+        uint32_t now = millis();
+        _lastPortalUseMs = now ? now : 1;
         String nets = buildNetworkList();
         _portalServer->send(200, "text/html", buildPortalPage(nets));
     });
 
     _portalServer->on("/save", HTTP_POST, [this]() {
+        uint32_t now = millis();
+        _lastPortalUseMs = now ? now : 1;
         String ssid = _portalServer->arg("ssid");
         String pass = _portalServer->arg("pass");
         if (ssid.length() == 0) {
@@ -277,6 +301,9 @@ void WiFiManager::setupPortalRoutes() {
     });
 
     // Redirect captive-portal detection requests (iOS, Android, Windows) to the setup page.
+    // Deliberately NOT counted as someone using the portal: a phone that has
+    // remembered this network probes it every few minutes on its own, and
+    // counting that would hold off the retry indefinitely -- the trap again.
     _portalServer->onNotFound([this]() {
         _portalServer->sendHeader("Location", "http://192.168.4.1/");
         _portalServer->send(302, "text/plain", "");
@@ -296,6 +323,12 @@ void WiFiManager::startAP() {
 
     // WIFI_AP_STA so we can still scan for nearby networks while the AP is up.
     WiFi.mode(WIFI_AP_STA);
+
+    // The core's auto-reconnect treats "network not found" as transient and
+    // retries it back to back, which would keep the radio scanning for as long
+    // as the portal is up. retrySavedNetwork() paces attempts itself instead.
+    // Never switched back on: the portal is only ever left by rebooting.
+    WiFi.setAutoReconnect(false);
     if (strlen(_apPass) >= 8) {
         WiFi.softAP(_apSsid, _apPass);
     } else {
@@ -352,6 +385,13 @@ void WiFiManager::stopAP() {
 // ===== Public interface =====
 
 void WiFiManager::begin() {
+    // Read once and clear, so only the single boot after a recovery waits longer.
+    uint32_t timeout = _connectTimeout;
+    if (s_recoveryBoot == RECOVERY_MAGIC && timeout < RECOVERY_CONNECT_TIMEOUT_MS) {
+        timeout = RECOVERY_CONNECT_TIMEOUT_MS;
+    }
+    s_recoveryBoot = 0;
+
     String ssid, pass;
     if (loadCredentials(ssid, pass)) {
         Serial.print("[WiFi] Connecting to "); Serial.println(ssid);
@@ -362,7 +402,7 @@ void WiFiManager::begin() {
         // at startup, and the caller wants to know the outcome before deciding
         // whether to start app services or fall back to provisioning.
         unsigned long start = millis();
-        while (WiFi.status() != WL_CONNECTED && (millis() - start) < _connectTimeout) {
+        while (WiFi.status() != WL_CONNECTED && (millis() - start) < timeout) {
             vTaskDelay(pdMS_TO_TICKS(200));
         }
         if (WiFi.status() == WL_CONNECTED) {
@@ -380,8 +420,69 @@ void WiFiManager::begin() {
     startAP();
 }
 
+/**
+ * In portal mode, keep trying the saved network, and reboot once it answers.
+ *
+ * WHY THIS EXISTS. begin() tries the saved network for a few seconds at boot and
+ * falls back to the portal if it cannot join. Before this, nothing ever tried
+ * again: a door that rebooted during a brief outage -- a power cut that also
+ * took down the access point, a router restart -- stayed in the portal until
+ * someone walked up and re-entered the SAME credentials. That happened in the
+ * field: two doors sat in the portal for 17 days, and rejoining them to the
+ * network they already knew, with the password they already had, was the whole
+ * fix.
+ *
+ * HOW. Every RETRY_INTERVAL_MS the STA side of WIFI_AP_STA is pointed at the
+ * saved network for RETRY_WINDOW_MS, then stopped, so the portal is not left
+ * sharing its radio with a scan that may never succeed. On success, reboot
+ * rather than switch over live: the application decides what to start from the
+ * outcome of begin() (the portal owns port 80; the app's server only starts in
+ * STA mode), and a clean boot is the one path that is already proven.
+ *
+ * A person actually using the portal is left alone for PORTAL_IN_USE_MS after
+ * each page load. They may be about to enter different credentials, and an
+ * attempt in progress makes the network scan come back empty.
+ *
+ * Only with saved credentials: a device that has never been set up has nothing
+ * to return to.
+ */
+void WiFiManager::retrySavedNetwork() {
+    uint32_t now = millis();
+
+    // Checked whether or not an attempt of ours is running: the connect begin()
+    // started can still succeed after the portal is up, and that counts too.
+    if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("[WiFi] Saved network is reachable again - rebooting to resume.");
+        s_recoveryBoot = RECOVERY_MAGIC;
+        ESP.restart();
+    }
+
+    if (_retryStartedMs != 0) {
+        if (now - _retryStartedMs < RETRY_WINDOW_MS) return;
+        WiFi.disconnect(/*wifioff=*/false, /*eraseap=*/false);   // keeps the AP up
+        _retryStartedMs = 0;
+        _lastRetryEndMs = now;
+        return;
+    }
+
+    if (now - _lastRetryEndMs < RETRY_INTERVAL_MS) return;
+    uint32_t used = _lastPortalUseMs;
+    if (used != 0 && now - used < PORTAL_IN_USE_MS) return;
+
+    String ssid, pass;
+    if (!loadCredentials(ssid, pass)) return;
+    Serial.print("[WiFi] Portal up; retrying saved network "); Serial.println(ssid);
+    _retryStartedMs = now ? now : 1;
+    WiFi.begin(ssid.c_str(), pass.c_str());   // STA side only; mode stays AP_STA
+}
+
 void WiFiManager::loop() {
-    if (_state != STATE_STA) return;   // AP mode is self-driven by the portal task
+    if (_state != STATE_STA) {
+        // The portal itself is served by its own task; the main loop's only job
+        // in this state is to find the way back.
+        retrySavedNetwork();
+        return;
+    }
 
     unsigned long now = millis();
     if (now - _lastCheck < 5000) return;
