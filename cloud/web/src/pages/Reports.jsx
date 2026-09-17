@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks';
 import { useLocation, useSearch } from 'wouter-preact';
 import { api } from '../auth';
-import { Table, Pill } from '../components/Table';
+import { Table, Pill, EventTime } from '../components/Table';
 import { describeEvent } from '../events';
 
 /**
@@ -110,12 +110,7 @@ export function Reports({ notify }) {
               <Table
                 headers={['When', 'Door', 'Person', 'Result']}
                 rows={data.events.map((e) => [
-                  <span>
-                    {new Date(e.at).toLocaleString()}
-                    {/* Logged before the device clock was trusted: derived, not
-                        observed. Saying so beats presenting a guess. */}
-                    {e.timeApprox && <Pill>≈</Pill>}
-                  </span>,
+                  <EventTime e={e} />,
                   e.doorName,
                   e.personName ?? (e.cred ? <code>{e.cred}</code> : '—'),
                   describeEvent(e),
@@ -246,10 +241,7 @@ function Firmware({ data }) {
             <Table
               headers={['When', 'Door', 'Change', 'Result', 'Came back']}
               rows={data.events.map((e) => [
-                <span>
-                  {new Date(e.at).toLocaleString()}
-                  {e.timeApprox && <Pill>≈</Pill>}
-                </span>,
+                <EventTime e={e} />,
                 e.doorName,
                 e.change
                   ? <span><code>{e.from}</code> → <code>{e.to}</code></span>
@@ -263,7 +255,7 @@ function Firmware({ data }) {
                 !e.succeeded
                   ? <span class="muted">did not reboot</span>
                   : e.confirmed
-                    ? <span class="muted">{new Date(e.rebootedAt).toLocaleTimeString()}</span>
+                    ? <span class="muted"><EventTime e={e.rebooted} /></span>
                     : <span class="bad">no boot seen</span>,
               ])}
             />

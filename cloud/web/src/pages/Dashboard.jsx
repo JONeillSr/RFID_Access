@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks';
 import { api, atLeast } from '../auth';
-import { Table, Tile, Pill } from '../components/Table';
+import { Table, Tile, EventTime } from '../components/Table';
 import { EnrollDialog } from '../components/EnrollDialog';
 import { describeEvent, TAP } from '../events';
 
@@ -100,7 +100,7 @@ export function Dashboard({ notify, flash }) {
             rows={unknown.map((c) => [
               <code>{c.cred}</code>,
               c.taps,
-              new Date(c.lastSeen).toLocaleString(),
+              <EventTime e={c} />,
               c.door,
               atLeast('Operator') ? (
                 <div class="rowacts">
@@ -125,10 +125,7 @@ export function Dashboard({ notify, flash }) {
       <Table
         headers={['When', 'Door', 'Person', 'Result']}
         rows={recent.map((e) => [
-          <span>
-            {new Date(e.at).toLocaleString()}
-            {e.timeApprox && <Pill>≈</Pill>}
-          </span>,
+          <EventTime e={e} />,
           e.doorName,
           e.personName ?? (e.cred ? <code>{e.cred}</code> : '—'),
           describeEvent(e),

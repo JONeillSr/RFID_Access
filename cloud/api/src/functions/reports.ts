@@ -25,6 +25,7 @@ import { TableClient, odata } from '@azure/data-tables';
 import { DefaultAzureCredential } from '@azure/identity';
 import { requireRole, isDenied } from '../adminAuth';
 import { invertedTs, monthKey, listFirmware } from '../storage';
+import { compareSequence } from '../eventTime';
 import { EventType } from '../../../shared/types';
 
 const account = process.env.STORAGE_ACCOUNT_NAME!;
@@ -75,7 +76,14 @@ interface Row {
   type: number;
   reason: number;
   granted: boolean;
+  /** Position in the door's own log. Unlike `at`, always true. */
+  bootId: number;
+  idx: number;
   timeApprox: boolean;
+  /** No time could be established; `at` is a placement, the bounds are the truth. */
+  timeUnknown: boolean;
+  timeNotBefore?: string;
+  timeNotAfter?: string;
 }
 
 function toRow(e: any): Row {
@@ -89,7 +97,23 @@ function toRow(e: any): Row {
     type: e.type,
     reason: e.reason,
     granted: e.granted === true,
+    bootId: Number(e.bootId),
+    idx: Number(e.idx),
     timeApprox: e.timeApprox === true,
+    timeUnknown: e.timeUnknown === true,
+    timeNotBefore: e.timeNotBefore || undefined,
+    timeNotAfter: e.timeNotAfter || undefined,
+  };
+}
+
+/** Just the fields that say when something happened, and how sure that is. */
+function timeOf(r: Row) {
+  return {
+    at: r.at,
+    timeApprox: r.timeApprox,
+    timeUnknown: r.timeUnknown,
+    timeNotBefore: r.timeNotBefore,
+    timeNotAfter: r.timeNotAfter,
   };
 }
 
@@ -220,7 +244,9 @@ app.http('reportUnknown', {
 
     // Collapse to distinct cards: the same unrecognised fob tapped eleven times
     // is one thing to enrol, not eleven. Keep the most recent sighting and where.
-    const seen = new Map<string, { cred: string; lastSeen: string; door: string; taps: number }>();
+    const seen = new Map<string, ReturnType<typeof timeOf> & {
+      cred: string; lastSeen: string; door: string; taps: number;
+    }>();
     for (const r of rows) {
       if (!r.cred) continue;
       // ONLY card taps. Other event types reuse the detail field for their own
@@ -233,7 +259,7 @@ app.http('reportUnknown', {
       if (!/^[0-9]+$/.test(r.cred)) continue;
       const e = seen.get(r.cred);
       if (e) { e.taps++; }
-      else seen.set(r.cred, { cred: r.cred, lastSeen: r.at, door: r.doorName, taps: 1 });
+      else seen.set(r.cred, { ...timeOf(r), cred: r.cred, lastSeen: r.at, door: r.doorName, taps: 1 });
     }
 
     return {
@@ -368,26 +394,26 @@ app.http('reportFirmware', {
     for (const door of doors) {
       const rows = await scan('EventsByDoor', (m) => `${door.id}-${m}`, range, MAX_ROWS);
 
-      // Boots, oldest first, so each firmware event can be matched to the next
-      // one after it.
+      // Boots in the door's own order, so each firmware event can be matched to
+      // the next one after it. Matched by SEQUENCE, not by time: a boot that
+      // came up without a clock has only a window, and a time comparison would
+      // pair the update with the wrong start-up or with none.
       const boots = rows
         .filter((r) => r.type === EventType.Boot)
-        .map((r) => Date.parse(r.at))
-        .sort((a, b) => a - b);
+        .sort(compareSequence);
 
       const events = rows
         .filter((r) => r.type === EventType.FirmwareUpdated || r.type === EventType.FirmwareFailed)
         .map((r) => {
-          const at = Date.parse(r.at);
           // DID THE DOOR COME BACK? A successful flash is followed by a reboot,
           // so the next boot event is the evidence the new image actually runs.
           // Without this the report would say "updated" for a door that took an
           // image and never came up again -- which is the failure that matters,
           // and the one nobody would notice from a version number alone.
-          const nextBoot = boots.find((b) => b >= at);
+          const nextBoot = boots.find((b) => compareSequence(b, r) > 0);
           const ok = r.type === EventType.FirmwareUpdated;
           return {
-            at: r.at,
+            ...timeOf(r),
             deviceId: door.id,
             doorName: door.name,
             // The device packs the transition into the credential field, e.g.
@@ -396,11 +422,10 @@ app.http('reportFirmware', {
             from: r.cred?.includes('>') ? r.cred.split('>')[0] : '',
             to: r.cred?.includes('>') ? r.cred.split('>')[1] : '',
             succeeded: ok,
-            rebootedAt: nextBoot ? new Date(nextBoot).toISOString() : null,
+            rebooted: nextBoot ? timeOf(nextBoot) : null,
             // Only meaningful for a success: a failed update does not reboot, so
             // the absence of a boot afterwards is expected rather than alarming.
             confirmed: ok ? nextBoot !== undefined : null,
-            timeApprox: r.timeApprox,
           };
         });
 
