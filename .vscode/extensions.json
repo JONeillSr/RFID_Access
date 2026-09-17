@@ -1,11 +1,11 @@
 {
-  "recommendations": [
-    "ms-azuretools.vscode-azurefunctions",
-    "Jason2866.esp-decoder",
-    "pioarduino.pioarduino-ide",
-    "platformio.platformio-ide"
-  ],
-  "unwantedRecommendations": [
-    "ms-vscode.cpptools-extension-pack"
-  ]
+    "recommendations": [
+        "Jason2866.esp-decoder",
+        "ms-azuretools.vscode-azurefunctions",
+        "pioarduino.pioarduino-ide",
+        "platformio.platformio-ide"
+    ],
+    "unwantedRecommendations": [
+        "ms-vscode.cpptools-extension-pack"
+    ]
 }
