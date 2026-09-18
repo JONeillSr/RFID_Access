@@ -250,6 +250,9 @@ bool CloudSync::syncOnce(String& err) {
     req["bootId"]    = eventLog.bootId();
     req["bootEpoch"] = bootEpoch();
     req["rosterRev"] = acRosterRev();
+    // What this door is actually running, so the admin app can tell a config it
+    // has merely stored from one the door has applied.
+    if (_readerMode.length()) req["readerMode"] = _readerMode;
 
     JsonArray evs = req["events"].to<JsonArray>();
     for (size_t i = 0; i < n; i++) {
@@ -380,6 +383,48 @@ bool CloudSync::syncOnce(String& err) {
         _status.eventsSent += (uint32_t)n;
         _status.rosterRev = resp["rosterRev"] | _status.rosterRev;
         unlock();
+    }
+
+    // ---- door configuration ------------------------------------------------
+    // Delivered on every sync, not only when it changes: a door that was offline
+    // or failed to apply a setting gets another chance on the next cycle, and
+    // the handler is the one place that knows what is already in effect.
+    //
+    // Deliberately after the ack above -- a config the door cannot use must not
+    // cost it the event batch -- and before the firmware offer, which may reboot.
+    if (_onConfig && resp["config"].is<JsonObject>()) {
+        JsonObject c = resp["config"];
+        DoorConfig cfg;
+        if (c["relayHoldMs"].is<uint32_t>()) {
+            cfg.hasRelayHoldMs = true;
+            cfg.relayHoldMs    = c["relayHoldMs"].as<uint32_t>();
+        }
+        if (c["resultHoldMs"].is<uint32_t>()) {
+            cfg.hasResultHoldMs = true;
+            cfg.resultHoldMs    = c["resultHoldMs"].as<uint32_t>();
+        }
+        if (c["schedule"].is<JsonObject>()) {
+            JsonObject sc      = c["schedule"];
+            cfg.hasSchedule    = true;
+            cfg.schedEnabled   = sc["enabled"]  | false;
+            cfg.schedStartMin  = sc["startMin"] | 0;
+            cfg.schedEndMin    = sc["endMin"]   | 0;
+            cfg.schedDaysMask  = sc["daysMask"] | 0;
+        }
+        if (c["readerMode"].is<const char*>()) {
+            String m = c["readerMode"].as<String>();
+            m.toLowerCase();
+            // Only the two values this firmware understands. Anything else is a
+            // newer backend talking about a reader this image cannot drive, and
+            // guessing at it would stop every fob at the door.
+            if (m == "wiegand" || m == "cnd") {
+                cfg.hasReaderMode = true;
+                cfg.readerWiegand = (m == "wiegand");
+            } else if (m.length()) {
+                say("[cloud] ignoring unknown reader format '" + m + "'");
+            }
+        }
+        _onConfig(cfg);
     }
 
     // ---- firmware offer ----------------------------------------------------

@@ -68,6 +68,9 @@
 
 // -- Timing configuration (board-independent) ---------------------------------
 // Pin assignments live in Pins.h; only timing/behaviour constants are here.
+// Defaults only. Both are per-door settings the admin app pushes down on sync
+// (CloudSync::DoorConfig), kept in NVS so an offline boot still uses the value
+// the door was last given rather than reverting to these.
 #define RELAY_HOLD_MS  3000       // how long the relay stays energised (ms)
 #define RESULT_HOLD_MS 4000       // how long a GRANTED/DENIED screen stays up (ms)
 
@@ -83,6 +86,9 @@
 // Settings keys (NVS keys are <= 15 characters).
 static const char* const KEY_DOOR_CONTACT  = "doorContact";   // bool: a contact is fitted
 static const char* const KEY_DOOR_HELD_SEC = "doorHeldSec";   // uint: held-open limit, 0 = off
+static const char* const KEY_READER_MODE   = "readerMode";    // uint: PaxtonReader::Mode
+static const char* const KEY_RELAY_HOLD_MS  = "relayHoldMs";   // uint: ms
+static const char* const KEY_RESULT_HOLD_MS = "resultHoldMs";  // uint: ms
 
 // Short tag leading this project's device IDs, e.g. "rfid-a1b2c3". The rest of
 // the ID comes from the board's MAC, so every unit is unique with no per-door
@@ -133,9 +139,10 @@ static const char* const KEY_DOOR_HELD_SEC = "doorHeldSec";   // uint: held-open
 static const uint32_t NTP_STALE_S = NTP_POLL_S * 2 + 600;
 
 // -- Globals ------------------------------------------------------------------
-// Clock & Data is the P-series' native output on Net2 wiring; pass
-// PaxtonReader::WIEGAND instead if the reader has been switched to Wiegand
-// (Paxton config card) or a third-party Wiegand reader is fitted.
+// Clock & Data is the P-series' native output on Net2 wiring and the default.
+// The mode here is only the fallback: setup() replaces it with the format saved
+// on /setup ("Reader format"), so a door with a Wiegand reader -- a Paxton
+// switched with a config card, or a third-party reader -- needs no custom build.
 PaxtonReader  paxton(PIN_PAXTON_DATA, PIN_PAXTON_CLOCK,
                      PIN_PAXTON_LED_R, PIN_PAXTON_LED_G, PIN_PAXTON_LED_A,
                      PaxtonReader::CLOCK_AND_DATA);
@@ -159,6 +166,17 @@ static bool              gOledOk = false;
 // Non-blocking relay release: accessTask sets a deadline, loop() clears the pin
 // when it passes, so card processing is never stalled for the full hold time.
 static volatile unsigned long relayOffAt = 0;
+
+// Timings in force right now: the defaults above until NVS or the admin app
+// says otherwise. Written by the sync task, read by accessTask and loop() --
+// aligned 32-bit scalars, so a reader either sees the old value or the new one.
+static volatile uint32_t gRelayHoldMs  = RELAY_HOLD_MS;
+static volatile uint32_t gResultHoldMs = RESULT_HOLD_MS;
+
+// A reader format arrived that differs from the one attached at boot. The format
+// decides which ISRs are attached, so it cannot be applied to a running reader;
+// /setup and /status say so until someone reboots the door.
+static volatile bool gReaderRebootPending = false;
 
 // Non-blocking result-screen restore: when a GRANTED/DENIED screen is shown,
 // accessTask records when it should revert to the idle screen.
@@ -250,7 +268,7 @@ static void oledShowResult(bool granted, const String& uid, const String& name) 
     gDisplay.display();
     xSemaphoreGive(oledMutex);
     // Schedule a return to the idle screen (handled non-blocking in loop()).
-    resultUntil = millis() + RESULT_HOLD_MS;
+    resultUntil = millis() + gResultHoldMs;
 }
 
 /// Restore the idle screen appropriate to the current WiFi state.
@@ -364,8 +382,8 @@ static void buzzerDenied() {
 /// returns immediately to process cards. The module fires on HIGH as wired.
 static void relayGrantedNonBlocking() {
     digitalWrite(PIN_RELAY, HIGH);
-    relayOffAt = millis() + RELAY_HOLD_MS;
-    gReleaseUntil = millis() + RELAY_HOLD_MS + DOOR_RELEASE_GRACE_MS;
+    relayOffAt = millis() + gRelayHoldMs;
+    gReleaseUntil = millis() + gRelayHoldMs + DOOR_RELEASE_GRACE_MS;
     gReleaseArmed = true;
 }
 
@@ -554,9 +572,24 @@ void setup() {
     // -- Reader --
     // The Paxton transmits spontaneously; begin() just configures the pins and
     // attaches the capture ISRs. Amber = "ready, present token" at the door.
+    // The line format is per door, saved on /setup, and applied here only: it
+    // decides which ISRs attach, so it cannot change under a running reader.
+    // An out-of-range stored value falls back to Clock & Data.
+    paxton.setMode(settings.getUInt(KEY_READER_MODE, PaxtonReader::CLOCK_AND_DATA)
+                       == PaxtonReader::WIEGAND
+                   ? PaxtonReader::WIEGAND : PaxtonReader::CLOCK_AND_DATA);
+    webService.log(String("[reader] format: ") +
+                   PaxtonReader::modeName(paxton.mode()));
     paxton.begin();
     paxton.ledIdle();
-    webService.log("[paxton] reader interface up (Clock&Data mode)");
+    // Format is on the line above; repeating it here would only be a second
+    // place to forget to update.
+    webService.log("[paxton] reader interface up");
+
+    // Timings the admin app owns. Read from NVS here so a door that boots with
+    // no network still uses what it was last told, not the compile-time default.
+    gRelayHoldMs  = settings.getUInt(KEY_RELAY_HOLD_MS,  RELAY_HOLD_MS);
+    gResultHoldMs = settings.getUInt(KEY_RESULT_HOLD_MS, RESULT_HOLD_MS);
 
     // -- Access-control state (allow-list + unlock schedule from NVS) --
     acInit();
@@ -639,6 +672,39 @@ void setup() {
                     "takes effect after a reboot, since the responder is started at boot."
                     "</div>";
 
+            // ---- Reader format ----
+            {
+                bool saved = settings.getUInt(KEY_READER_MODE, PaxtonReader::CLOCK_AND_DATA)
+                             == PaxtonReader::WIEGAND;
+                // Once paired, the admin app owns this, exactly as it owns the
+                // roster and the schedule. Shown, not editable: two places that
+                // can set the format would disagree, and the cloud would win at
+                // the next sync anyway -- silently, a reboot later.
+                bool managed = cloudSync.paired();
+                html += "<h2>Reader</h2>";
+                html += "<label>Reader format</label>";
+                html += String("<select name='readerMode'") + (managed ? " disabled" : "") + ">";
+                html += String("<option value='0'") + (saved ? "" : " selected") +
+                        ">Clock &amp; Data (Paxton default)</option>";
+                html += String("<option value='1'") + (saved ? " selected" : "") +
+                        ">Wiegand (Paxton switched by config card, or third-party reader)</option>";
+                html += "</select>";
+                html += "<div class='hint'>";
+                if (managed) {
+                    html += "Set in the admin app, which is the only writer while this "
+                            "door is paired. Unpair below to set it here again.<br>";
+                }
+                html += "Takes effect after a <b>reboot</b>. Running now: <b>" +
+                        String(PaxtonReader::modeName(paxton.mode())) + "</b>";
+                if ((saved ? PaxtonReader::WIEGAND : PaxtonReader::CLOCK_AND_DATA) != paxton.mode())
+                    html += " <span style='color:#e0a458'>(reboot pending)</span>";
+                html += ".<br>Wiegand wiring: D0 to the Data terminal, D1 to the Clock "
+                        "terminal. Taps that raise the error count on /status but never "
+                        "read usually mean the wrong format here or a swapped pair. "
+                        "Only 3.3&nbsp;V-safe (open-collector) data outputs may connect "
+                        "directly.</div>";
+            }
+
             // ---- Door contact ----
             html += "<h2>Door contact</h2>";
 #if PIN_DOOR_CONTACT >= 0
@@ -711,6 +777,29 @@ void setup() {
         webService.setSetupSaveHandler([](WebServer& s) {
             if (s.hasArg("doorName")) identity.setDoorName(s.arg("doorName"));
             if (s.hasArg("siteName")) identity.setSiteName(s.arg("siteName"));
+
+            // Reader format. Saved now, applied at the next boot (see setup()).
+            // Logged as a config event for the same reason as the door contact:
+            // /setup is unauthenticated, and a wrong format silently stops every
+            // fob working at this door -- that change must leave a trace.
+            // A disabled select submits nothing, so a paired door normally never
+            // gets here -- but the check is what makes that a rule rather than a
+            // property of the HTML, since /setup has no login.
+            if (s.hasArg("readerMode") && !cloudSync.paired()) {
+                uint32_t was = settings.getUInt(KEY_READER_MODE, PaxtonReader::CLOCK_AND_DATA);
+                uint32_t now = s.arg("readerMode") == "1" ? PaxtonReader::WIEGAND
+                                                          : PaxtonReader::CLOCK_AND_DATA;
+                if (now != was) {
+                    settings.setUInt(KEY_READER_MODE, now);
+                    eventLog.append(EventLog::EVT_CONFIG, EventLog::R_NONE, false,
+                                    now == PaxtonReader::WIEGAND ? "reader=wiegand"
+                                                                 : "reader=cnd");
+                    webService.log(String("[reader] format set to ") +
+                                   PaxtonReader::modeName((PaxtonReader::Mode)now) +
+                                   " - reboot to apply");
+                    gReaderRebootPending = (now != (uint32_t)paxton.mode());
+                }
+            }
 
 #if PIN_DOOR_CONTACT >= 0
             // Recorded as a config event when it changes. /setup is not
@@ -799,7 +888,16 @@ void setup() {
             body += "OLED:     " + String(gOledOk ? "OK (0x3C)" : "NOT FOUND") + "\n";
             // Taps that raise this count but never decode usually mean the
             // wrong line format (Clock&Data vs Wiegand) or a swapped pair.
-            body += "Reader:   Paxton Clock&Data, " + String(paxton.edgeCount())
+            if (gReaderRebootPending) {
+                // The format in NVS is not the one attached to the pins. Until
+                // someone reboots, this door is reading with the old one.
+                body += "Reader:   REBOOT PENDING - configured " +
+                        String(settings.getUInt(KEY_READER_MODE, PaxtonReader::CLOCK_AND_DATA)
+                                   == PaxtonReader::WIEGAND ? "Wiegand" : "Clock&Data") +
+                        ", still running:\n";
+            }
+            body += "Reader:   " + String(PaxtonReader::modeName(paxton.mode())) + ", "
+                  + String(paxton.edgeCount())
                   + " edge(s), " + String(paxton.errorCount())
                   + " error(s), " + String(paxton.repairCount())
                   + " repaired\n";
@@ -968,6 +1066,79 @@ void setup() {
         // did not update" is indistinguishable from "it was never offered
         // anything". That ambiguity cost real debugging time once already.
         cloudSync.setLogger([](const String& m) { webService.log(m); });
+
+        // What this door is running, so the admin app can show a format change
+        // as pending rather than applied. Wire values, not display labels.
+        cloudSync.setReaderMode(paxton.mode() == PaxtonReader::WIEGAND ? "wiegand" : "cnd");
+
+        // Per-door configuration from the admin app, applied on the sync task.
+        // Every value is compared against what is already in effect, because
+        // this arrives on EVERY sync: acting unconditionally would rewrite NVS
+        // and log a config event every 30 seconds.
+        cloudSync.setConfigHandler([](const CloudSync::DoorConfig& c) {
+            bool changed = false;
+
+            if (c.hasRelayHoldMs) {
+                // Clamped rather than trusted: a zero would make every grant a
+                // relay glitch nobody could walk through, and an hour would leave
+                // the door open. The bounds are what a strike can survive.
+                uint32_t v = c.relayHoldMs;
+                if (v < 250)   v = 250;
+                if (v > 30000) v = 30000;
+                if (v != gRelayHoldMs) {
+                    gRelayHoldMs = v;
+                    settings.setUInt(KEY_RELAY_HOLD_MS, v);
+                    webService.log("[cloud] relay hold set to " + String(v) + "ms");
+                    changed = true;
+                }
+            }
+            if (c.hasResultHoldMs) {
+                uint32_t v = c.resultHoldMs;
+                if (v < 500)   v = 500;
+                if (v > 30000) v = 30000;
+                if (v != gResultHoldMs) {
+                    gResultHoldMs = v;
+                    settings.setUInt(KEY_RESULT_HOLD_MS, v);
+                    webService.log("[cloud] result screen hold set to " + String(v) + "ms");
+                    changed = true;
+                }
+            }
+            if (c.hasSchedule) {
+                if (c.schedEnabled  != unlockSchedule.enabled()  ||
+                    c.schedStartMin != unlockSchedule.startMin() ||
+                    c.schedEndMin   != unlockSchedule.endMin()   ||
+                    c.schedDaysMask != unlockSchedule.daysMask()) {
+                    unlockSchedule.set(c.schedEnabled, c.schedStartMin,
+                                       c.schedEndMin, c.schedDaysMask);
+                    webService.log("[cloud] unlock schedule updated");
+                    changed = true;
+                }
+            }
+            if (c.hasReaderMode) {
+                uint32_t want = c.readerWiegand ? PaxtonReader::WIEGAND
+                                                : PaxtonReader::CLOCK_AND_DATA;
+                if (want != settings.getUInt(KEY_READER_MODE, PaxtonReader::CLOCK_AND_DATA)) {
+                    settings.setUInt(KEY_READER_MODE, want);
+                    // Its own event, like a local change: picking the wrong format
+                    // stops every fob at this door, so it must be traceable to the
+                    // moment it happened.
+                    eventLog.append(EventLog::EVT_CONFIG, EventLog::R_NONE, false,
+                                    want == PaxtonReader::WIEGAND ? "reader=wiegand"
+                                                                  : "reader=cnd");
+                    webService.log(String("[cloud] reader format set to ") +
+                                   PaxtonReader::modeName((PaxtonReader::Mode)want) +
+                                   " - reboot to apply");
+                }
+                // Recomputed every sync, so clearing a pending change by putting
+                // the old format back does not leave a stale warning behind.
+                gReaderRebootPending = (want != (uint32_t)paxton.mode());
+            }
+
+            // One event for the batch. The reader format logs its own above.
+            if (changed) {
+                eventLog.append(EventLog::EVT_CONFIG, EventLog::R_NONE, false, "cloud");
+            }
+        });
 
         cloudSync.begin(&settings, &identity, CLOUD_HOST_DEFAULT);
         webService.log(String("[cloud] ") +

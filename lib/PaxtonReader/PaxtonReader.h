@@ -53,6 +53,18 @@ public:
                  int ledRedPin = -1, int ledGreenPin = -1, int ledAmberPin = -1,
                  Mode mode = CLOCK_AND_DATA);
 
+    /// Choose the line format. Only meaningful BEFORE begin(): the mode decides
+    /// which interrupts begin() attaches, and swapping them on a live reader
+    /// would race the ISRs. main.cpp calls this from setup() with the value
+    /// saved on /setup, so a format change takes effect on the next boot.
+    void setMode(Mode m) { _mode = m; }
+    Mode mode() const    { return _mode; }
+
+    /// Human label for a mode, as shown on /status and /setup.
+    static const char* modeName(Mode m) {
+        return m == WIEGAND ? "Wiegand" : "Clock&Data";
+    }
+
     /// Configure pins and attach interrupts. Call once from setup().
     void begin();
 

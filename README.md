@@ -225,9 +225,15 @@ duty-cycle rating, or use a maglock/continuous-duty strike for long windows.
 
 The reader outputs **Clock & Data** (Paxton's native format) by default, which
 is what the firmware expects. If the reader has been switched to Wiegand with a
-Paxton configuration card — or a third-party Wiegand reader is fitted — change
-the mode argument in the `PaxtonReader` constructor in `src/main.cpp` to
-`PaxtonReader::WIEGAND`.
+Paxton configuration card — or a third-party Wiegand reader is fitted — set
+**Reader format → Wiegand** and **reboot**. Set it in the **admin app** (Doors →
+edit → Reader format) for a paired door; `/setup` shows it read-only there, the
+same as the roster and schedule. An unpaired door sets it on `/setup` (the format decides which
+interrupts attach, so it is applied at boot; `/setup` shows "reboot pending"
+until then, and `/status` shows the running format). Wiegand D0 goes to the
+Data terminal and D1 to the Clock terminal. Only Paxton on Clock & Data is
+verified so far — qualify any other reader with
+[`docs/reader-qualification.md`](docs/reader-qualification.md) before promising it.
 
 ### Relay and door-strike wiring
 
@@ -557,8 +563,8 @@ diagnostic ladder (a tap should add ~80-100 edges):
 - **Edges jump, errors increment, never a card number** → bits arrive but
   won't parse. Every failed frame is logged with its raw bits
   (`[paxton] undecodable frame: 0001101...` at `/webserial`), which makes
-  the cause readable: wrong line format (reader switched to Wiegand → change
-  the constructor mode in `src/main.cpp`), swapped Data/Clock, or all-same
+  the cause readable: wrong line format (reader switched to Wiegand → set
+  **Reader format** on `/setup` and reboot), swapped Data/Clock, or all-same
   bits (the data pin is on the wrong wire — Media Detect also dips during a
   read and fools a multimeter).
 - **Reads work but `repaired` keeps climbing** → line quality is marginal.

@@ -130,6 +130,41 @@ public:
     using SafeToUpdateFn = std::function<bool()>;
     void setSafeToUpdate(SafeToUpdateFn fn) { _safeToUpdate = fn; }
 
+    /// Per-door configuration, authored in the admin app and pushed down on
+    /// every sync. Each field says whether this response carried it: the backend
+    /// may omit any of them, and a missing field must never reset a door to a
+    /// default it was never given.
+    ///
+    /// The module only delivers this; what a relay hold or a reader format means
+    /// is the application's business, as with SafeToUpdateFn.
+    struct DoorConfig {
+        bool     hasRelayHoldMs  = false;
+        uint32_t relayHoldMs     = 0;
+        bool     hasResultHoldMs = false;
+        uint32_t resultHoldMs    = 0;
+
+        bool     hasSchedule     = false;
+        bool     schedEnabled    = false;
+        uint16_t schedStartMin   = 0;
+        uint16_t schedEndMin     = 0;
+        uint8_t  schedDaysMask   = 0;
+
+        bool     hasReaderMode   = false;
+        bool     readerWiegand   = false;
+    };
+
+    /// Called on the sync task whenever a response carries a config block.
+    /// Called on EVERY sync, not only on change: the handler compares against
+    /// what the door is already doing, so a door that missed a change while
+    /// offline picks it up on its next successful sync.
+    using ConfigFn = std::function<void(const DoorConfig&)>;
+    void setConfigHandler(ConfigFn fn) { _onConfig = fn; }
+
+    /// The reader line format this door is RUNNING, reported with each sync so
+    /// the admin app can tell a pending format change from an applied one.
+    /// Set once in setup(), after the format is resolved.
+    void setReaderMode(const String& name) { _readerMode = name; }
+
     /// Where this module reports what it decided.
     ///
     /// Without it, everything here is invisible: a refused or deferred firmware
@@ -162,6 +197,8 @@ private:
     uint32_t _currentWaitMs   = 0;
 
     SafeToUpdateFn _safeToUpdate = nullptr;
+    ConfigFn       _onConfig      = nullptr;
+    String         _readerMode;              // empty = not reported
 
     // A firmware offer approved by syncOnce() but not yet applied. It is held
     // here rather than actioned inline so the download starts only after
