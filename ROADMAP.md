@@ -736,6 +736,122 @@ architecture, and explicitly not a prerequisite.
 
 ---
 
+## Phase 8 — Reader interoperability: Wiegand now, OSDP and encrypted credentials next
+
+**Added 2026-09-18**, prompted by a customer prospect. Paxton P-series on Clock &
+Data is the only reader verified end to end, and it stays the reader we sell as
+proven. This phase is how the list grows without over-promising.
+
+### Step 1 — Wiegand as a per-door setting ✅ CODE DONE, ⏳ UNTESTED ON HARDWARE
+
+The line format was a constructor argument in `src/main.cpp`, which with one
+image for every customer meant a Wiegand site needed a custom build. It is now
+**Reader format** (NVS key `readerMode`), applied in `setup()` before
+`paxton.begin()` because the mode decides which ISRs attach. A change is saved
+immediately, **applied on reboot**, shown as "reboot pending" until then, and
+written to the event spool as a config event (`reader=wiegand` / `reader=cnd`) —
+the wrong format silently stops every fob at that door, and `/setup` has no
+login. `/status` names the running format.
+
+**Set centrally, like everything else a paired door obeys.** It is part of the
+cloud door config (`DoorConfig.readerMode`, `'cnd'` or `'wiegand'`), edited in
+the admin app under Doors. `/setup` shows it read-only while a door is paired
+and remains the way to set it on an unpaired door. The door reports the format
+it is RUNNING with every sync, so the admin app distinguishes a change that is
+pending from one that has been applied, and the backend rejects any other value
+rather than passing it to a door that cannot argue back.
+
+**This uncovered a real gap:** the backend had been sending `config` on every
+sync since Phase 3 and **the device never read it**. Relay hold, result-screen
+hold and the unlock schedule were authored in the admin app, pushed to the door,
+and silently dropped — while the door's own API refused local edits with "make
+the change in the admin app". A paired door's schedule could not be changed from
+anywhere. The device now applies the whole block (2.8.1), clamping each value,
+comparing against what is already in effect so nothing is rewritten every 30
+seconds, and recording one config event when something actually changes.
+
+Still open before "Wiegand readers supported" goes on anything customer-facing:
+
+- [ ] Bench-qualify one mainstream third-party reader end to end with
+  `docs/reader-qualification.md`.
+- [ ] Decode **34-bit** (even/odd parity halves) and **HID Corporate 1000
+  35-bit** properly. Today only 26-bit is parity-checked; every other length is
+  accepted as a raw number with no validation, so a noisy frame can enrol as a
+  different "card".
+- [ ] Reader feedback for single-LED / beeper readers. The LED calls assume
+  Paxton's separate red/amber/green lines.
+- [x] Decide whether the format belongs in the cloud door config rather than on
+  local `/setup`, consistent with "device pages read-only once paired".
+  **Decided 2026-09-18: the cloud owns it when paired.**
+- [ ] Prove the pending/applied round trip on Test Door 1: set the format in the
+  admin app, confirm the door shows "reboot pending" and the admin app agrees,
+  reboot, confirm both say applied. Safe to do with a Paxton attached by setting
+  it back to Clock & Data before rebooting.
+
+### Step 2 — OSDP (Open Supervised Device Protocol)
+
+Wiegand is one-way, unsupervised and unencrypted: anyone with access to the
+cable can read card numbers off it or replay them, and a cut or swapped reader
+looks exactly like a quiet one. OSDP (SIA standard, IEC 60839-11-5) replaces it
+with bidirectional RS-485, reader supervision (offline and tamper are reported),
+and **Secure Channel** (AES-128) between reader and controller. It is what
+security-led buyers increasingly ask for, and it fits the product's Zero Trust
+story better than anything else on this list.
+
+Hardware (feeds **PCB Rev 2**):
+
+- 3.3 V half-duplex RS-485 transceiver (MAX3485 / SP3485 class), a 120 Ω
+  termination jumper, and a 4-pin terminal (12V, 0V, A, B).
+- A UART plus a direction (DE/RE) pin. **DevKit / S3 only** — the C6 and C3 have
+  no free pins, same constraint as the door contact.
+
+Firmware:
+
+- Evaluate **libosdp** (portable C, Control Panel mode, Secure Channel) on
+  ESP-IDF before writing anything ourselves. Protocol code is not where this
+  project should be original.
+- The controller is the OSDP Control Panel; the reader is the Peripheral
+  Device. The access decision stays local, exactly as today.
+- Reader LED/buzzer control comes over OSDP, which removes the per-brand LED
+  wiring problem from Step 1.
+- Surface reader supervision: *reader offline* and *tamper* become events on the
+  dashboard, like forced doors.
+
+Key management — the part that needs design, not just code:
+
+- Secure Channel keys (SCBK) are per reader. Readers ship with a well-known
+  install-mode key; the controller must move each reader to a unique key at
+  install, and **never leave a reader on the default key** — that is Secure
+  Channel in name only.
+- Where the per-reader key lives (device NVS vs cloud, and how a replacement
+  controller gets it) must be decided before the first install.
+
+### Step 3 — Encrypted credentials (DESFire EV2/EV3, iCLASS SE / Seos class)
+
+125 kHz proximity cards — including the Paxton tokens in use today — carry no
+cryptography and can be cloned with cheap handheld tools. The fix is a 13.56 MHz
+smart-card credential whose secured data only a keyed reader can read.
+
+- The **card** cryptography happens in the reader. The controller still receives
+  a credential number; nothing in the roster model changes.
+- **Pair this with OSDP, not Wiegand.** An encrypted card read out over plain
+  Wiegand puts the number back on an unencrypted wire, which gives most of the
+  security back.
+- Card keys must be site-specific (a custom or customer-owned key), not the
+  reader vendor's defaults.
+- Migration is the real work: sites run old and new cards side by side for a
+  while. The roster already keys on the credential string plus `cardType`, so
+  one person can hold a prox fob and a smart card during the changeover.
+
+### Order and gating
+
+Step 1 hardware test → Step 2 on the Rev 2 board → Step 3 once OSDP Secure
+Channel is proven. Marketing language moves only after each gate: today the slick
+says Paxton only, and "most Wiegand readers, confirmed per site" is allowed only
+once Step 1's reader test passes.
+
+---
+
 ## Files
 
 **New (device)** — all written project-agnostic; `DeviceIdentity`, `EventLog`, and
@@ -1153,3 +1269,11 @@ door is shut**, exactly the exit-button wiring pattern. The signal pin per board
 
 Wire it as its own terminal so the reed and its ground are a clean field
 connection, and give it per-pin silk (`DOOR`, `GND`) like the exit button.
+
+### New requirement — RS-485 reader port for OSDP
+
+For **Phase 8 Step 2**: a 3.3 V half-duplex RS-485 transceiver, a 120 Ω
+termination jumper, and a 4-pin terminal (`12V`, `0V`, `A`, `B`) with per-pin
+silk. Keep the existing Clock & Data / Wiegand terminal as well, so one board
+serves both reader types. DevKit / S3 only (UART + DE/RE pin); fit it as an
+optional footprint so boards that don't need it aren't populated.
