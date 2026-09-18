@@ -79,9 +79,18 @@ export interface Group {
 }
 
 /** Per-door configuration, authored centrally and pushed down on sync. */
+export type ReaderMode = 'cnd' | 'wiegand';
+
 export interface DoorConfig {
   relayHoldMs: number;
   resultHoldMs: number;
+  /**
+   * Reader line format. 'cnd' is Paxton's native Clock & Data and the default.
+   * The device attaches its capture interrupts from this at boot, so a change
+   * only takes effect when the door restarts -- compare with the door's own
+   * `readerMode` (what it is running) to see a change still pending.
+   */
+  readerMode?: ReaderMode;
   /** Minutes past midnight, local to the door's timezone. */
   schedule?: {
     enabled: boolean;
@@ -107,6 +116,8 @@ export interface Door {
   lastSeen?: string;
   firmware?: string;
   rosterRev?: number;
+  /** Reader format the door reported running at its last sync. */
+  readerMode?: ReaderMode;
   /**
    * Hold this door back from firmware offers.
    *
@@ -237,6 +248,8 @@ export interface SyncRequest {
   bootEpoch: number;
   /** Roster revision the device currently holds; 0 = never synced. */
   rosterRev: number;
+  /** Reader line format the device is RUNNING, not the one configured for it. */
+  readerMode?: ReaderMode;
   events: DeviceEvent[];
 }
 

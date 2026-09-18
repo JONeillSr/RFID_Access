@@ -143,6 +143,11 @@ export async function sync(
     board: body.board,
     firmware: body.firmware,
     rosterRev: deviceRev,
+    // What the door is actually running, which is not necessarily what it has
+    // been configured with: the reader format is applied at boot.
+    ...(body.readerMode === 'cnd' || body.readerMode === 'wiegand'
+      ? { readerMode: body.readerMode }
+      : {}),
     // Only once the boot's start is actually known: storing 0 would pin a boot
     // to "no clock" for its whole life even after NTP arrives.
     ...(bootEpoch > 0 ? { bootId: reportedBootId, bootEpoch } : {}),

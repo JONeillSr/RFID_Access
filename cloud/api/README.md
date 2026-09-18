@@ -86,6 +86,24 @@ npm run typecheck      # tsc --noEmit
 npm run check-event-time   # event-time resolution scenarios; needs a build first
 ```
 
+## Door configuration
+
+`POST v1/admin/doors` carries a `config` blob that is stored per door and pushed
+down on every sync: `relayHoldMs`, `resultHoldMs`, `schedule` and `readerMode`
+(`cnd` or `wiegand`).
+
+**It is validated on the way in, and only here.** A door applies what it is given
+and has no way to argue: a relay hold of zero makes every grant a click nobody
+can walk through, and a reader format its reader does not speak denies every fob
+at that door. Unknown fields are dropped, numbers are held to their bounds, and
+a bad `readerMode` is refused with a 400 rather than passed on.
+
+The reader format takes effect **at the door's next boot**, because it decides
+which capture interrupts are attached. Each door reports the format it is
+*running* in its sync request, stored on the door row as `readerMode`, so the
+admin app can tell a pending change from an applied one. Firmware before 2.8.1
+ignored this whole block.
+
 ## Event times
 
 A door with no clock records uptime, not a time, so every stored event says how

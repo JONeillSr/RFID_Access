@@ -143,7 +143,14 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
     deviceId: door.deviceId, name: door.name ?? '', site: door.site ?? '',
     groups: door.groups ?? [], fwHold: door.fwHold === true,
     relayHoldMs: cfg.relayHoldMs ?? '', resultHoldMs: cfg.resultHoldMs ?? '',
+    readerMode: cfg.readerMode ?? '',
   });
+
+  // What the door reports running, which is not what it has been configured
+  // with until it restarts: the format decides which interrupts it attaches.
+  const running = door.readerMode || '';
+  const readerName = (m) => (m === 'wiegand' ? 'Wiegand' : m === 'cnd' ? 'Clock & Data' : 'unknown');
+  const readerPending = rec.readerMode && running && rec.readerMode !== running;
 
   const num = (v) => (v === '' || v === null ? null : Number(v));
   const relayOk = rec.relayHoldMs === '' || (Number.isFinite(num(rec.relayHoldMs)) && num(rec.relayHoldMs) > 0);
@@ -157,6 +164,7 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
     const config = { ...cfg };
     if (rec.relayHoldMs === '') delete config.relayHoldMs; else config.relayHoldMs = num(rec.relayHoldMs);
     if (rec.resultHoldMs === '') delete config.resultHoldMs; else config.resultHoldMs = num(rec.resultHoldMs);
+    if (rec.readerMode === '') delete config.readerMode; else config.readerMode = rec.readerMode;
 
     onSave({
       deviceId: rec.deviceId, name: rec.name, site: rec.site,
@@ -194,6 +202,33 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
              error={resultOk ? null : 'Must be a positive number.'}>
         <Text value={rec.resultHoldMs} onInput={(v) => set('resultHoldMs', v)} placeholder="4000" />
       </Field>
+
+      <Field label="Reader format"
+             hint={`The line format this door's reader speaks. Applied when the door next restarts${
+               running ? `; running now: ${readerName(running)}` : ''
+             }. Leave as the device setting to manage it at the door instead.`}>
+        <select value={rec.readerMode} onChange={(e) => set('readerMode', e.currentTarget.value)}>
+          <option value="">— leave to the device —</option>
+          <option value="cnd">Clock &amp; Data (Paxton default)</option>
+          <option value="wiegand">Wiegand</option>
+        </select>
+      </Field>
+
+      {readerPending && (
+        <div class="consequence warn">
+          This door is still reading <strong>{readerName(running)}</strong>. The
+          change applies at its next restart; until then nothing changes at the
+          door.
+        </div>
+      )}
+
+      {rec.readerMode === 'wiegand' && (
+        <div class="consequence warn">
+          A reader that is not actually sending Wiegand will stop working
+          entirely — every fob denied, with the error count on the door's status
+          page climbing. Change it back here if that happens.
+        </div>
+      )}
 
       <Check label="Hold firmware updates" checked={rec.fwHold}
              onChange={(v) => set('fwHold', v)}

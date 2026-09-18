@@ -53,6 +53,47 @@ function parseConfig(v: unknown): Record<string, unknown> {
   }
 }
 
+/**
+ * Keep only fields this backend understands, and hold each to its limits.
+ *
+ * The config is pushed straight to a door that has no way to argue with it. A
+ * relay hold of zero makes every grant a click nobody can walk through; a reader
+ * format neither side understands stops every fob at that door. Rejecting here
+ * is the only place a person is still watching.
+ */
+function sanitizeConfig(v: unknown): Record<string, unknown> | string {
+  if (!v || typeof v !== 'object') return 'config must be an object';
+  const src = v as Record<string, any>;
+  const out: Record<string, unknown> = {};
+
+  const num = (key: string, lo: number, hi: number): string | undefined => {
+    if (src[key] === undefined) return;
+    const n = Number(src[key]);
+    if (!Number.isFinite(n) || n < lo || n > hi) return `${key} must be ${lo}-${hi}`;
+    out[key] = Math.round(n);
+  };
+  const err = num('relayHoldMs', 250, 30000) ?? num('resultHoldMs', 500, 30000);
+  if (err) return err;
+
+  if (src.readerMode !== undefined) {
+    if (src.readerMode !== 'cnd' && src.readerMode !== 'wiegand') {
+      return "readerMode must be 'cnd' or 'wiegand'";
+    }
+    out.readerMode = src.readerMode;
+  }
+
+  if (src.schedule !== undefined) {
+    const s = src.schedule;
+    if (!s || typeof s !== 'object') return 'schedule must be an object';
+    const start = Number(s.startMin), end = Number(s.endMin), days = Number(s.daysMask);
+    if (!Number.isInteger(start) || start < 0 || start > 1439) return 'schedule.startMin must be 0-1439';
+    if (!Number.isInteger(end) || end < 0 || end > 1439) return 'schedule.endMin must be 0-1439';
+    if (!Number.isInteger(days) || days < 0 || days > 127) return 'schedule.daysMask must be 0-127';
+    out.schedule = { enabled: s.enabled === true, startMin: start, endMin: end, daysMask: days };
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // People
 // ---------------------------------------------------------------------------
@@ -363,6 +404,9 @@ app.http('adminDoors', {
           // config blob, so a UI that could not read the current values would
           // overwrite them with whatever its blank form happened to hold.
           config: parseConfig(d.config),
+          // What the door reports running, so the UI can show a reader-format
+          // change as pending until the door restarts.
+          readerMode: d.readerMode ?? '',
         });
       }
       doors.sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -388,7 +432,11 @@ app.http('adminDoors', {
       if (unknown.length) return bad(`unknown group(s): ${unknown.join(', ')}`);
       patch.groups = groups.join(',');
     }
-    if (body.config !== undefined) patch.config = JSON.stringify(body.config);
+    if (body.config !== undefined) {
+      const cfg = sanitizeConfig(body.config);
+      if (typeof cfg === 'string') return bad(cfg);
+      patch.config = JSON.stringify(cfg);
+    }
 
     // Merge, never Replace: keyHash and pairedAt must survive an edit, or the
     // door silently loses its ability to authenticate.
