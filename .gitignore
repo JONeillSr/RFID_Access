@@ -99,3 +99,7 @@ cloud/web/dist/
 cloud/web/.env.local
 cloud/web/.env
 !cloud/web/.env.example
+
+# Marketing material: drafts, pricing and customer-facing collateral. Both repos
+# are public, so this stays local.
+docs/marketing/
