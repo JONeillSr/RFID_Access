@@ -1120,30 +1120,50 @@ was wrong; the repaired sequence is the one above.
 (`…6f:24:f1`). Sweep the subnet and look for the MAC in `arp -a`, or scan for the
 BSSID with `netsh wlan show networks mode=bssid`.
 
-#### ⚠️ No way to change a door's Wi-Fi once it is configured
+#### ✅ Changing a door's Wi-Fi — fixed in 2.8.2
 
-The setup portal is reachable only at boot, and only when the saved network
-cannot be joined — `startAP()` is called solely from `WiFiManager::begin()`.
-There is no Wi-Fi setting on `/setup`, no button and no reset.
-`WiFiManager::clearCredentials()` exists, but nothing calls it.
+Previously the setup portal was reachable only at boot, and only when the saved
+network could not be joined, so **a door that was still connected could not be
+moved to a new network at all.** The only routes were taking its old network away
+and power-cycling it, or erasing it over USB — a visit to every door, some of
+them above ceilings.
 
-The consequence is that **a door that is still connected cannot be moved to a new
-network at all.** The only routes are to take its old network away and then
-power-cycle it, or to erase it over USB. A router replacement, an SSID or password
-change, or a Phase 7 customer switching ISPs becomes a visit to every door — and
-some doors are above ceilings.
+Three ways now, in the order to reach for them:
 
-What a fix has to get right:
+| | Use when | If it goes wrong |
+|---|---|---|
+| **Wi-Fi fields on `/setup`** | the new network is reachable from where you are | the door returns to the network that worked |
+| **Admin app: *Open the setup network at the next restart*** | the new network is not reachable from the current one | the AP closes itself after 30 minutes |
+| **Hold the exit button at power-on** | the door is on a network nobody can reach | release and reboot; nothing was erased |
 
-- **Try, then keep or revert.** Joining a new network from `/setup` risks a typo
-  stranding the door where nobody can reach it to correct it. Try the new
-  credentials, keep them only once the door has an address, and otherwise fall
-  back to the ones that worked.
-- **It must be authenticated.** An unauthenticated control that re-homes a door
-  is the open-portal problem below, reachable from the LAN instead of from radio
-  range.
-- **A physical way back** — for example, holding the exit button at power-on
-  opens the portal — so recovery does not depend on the network being up.
+Against the three requirements this section originally set:
+
+- [x] **Try, then keep or revert.** `changeNetwork()` tries for 25 s, keeps the
+  new credentials only once the door has an address, and otherwise writes back
+  the old ones and reconnects. A typo costs a reconnect, not a ladder. It runs
+  from `loop()` as a state machine, because the switch drops the connection the
+  request arrived on — and because blocking would stall the strike release.
+- [~] **It must be authenticated.** `/setup` still has no login: this is the
+  unauthenticated local surface tracked below, and the Wi-Fi fields are now part
+  of what that gap exposes. Someone on the LAN can move a door to a network they
+  control. **This is the remaining piece of this fix**, and it is why the setup
+  AP self-closes and the portal trigger is physical.
+- [x] **A physical way back.** Holding the exit button through power-on forces
+  the portal with no network and no USB. Credentials are not erased, and the
+  2.7.4 background retry is suppressed while it is up — otherwise the portal
+  would reboot away underneath whoever was standing there using it.
+
+**There is deliberately no remote "reset Wi-Fi".** It is the one command that
+cannot be confirmed, undone or retried: it arrives over the network it destroys,
+and the door comes back reachable only by someone standing next to it. The admin
+app instead *arms* the setup AP for the next boot, which pairs the remote intent
+with physical presence and leaves the door working in the meantime.
+`clearCredentials()` still exists, and still has no caller.
+
+**Untested on hardware.** The AP-alongside-STA path in particular assumes
+switching to `WIFI_AP_STA` does not drop a live station link, and that one
+listener on port 80 answers on both interfaces. Both need proving on a door
+before this is relied on.
 
 #### Three more gaps from the same investigation
 
