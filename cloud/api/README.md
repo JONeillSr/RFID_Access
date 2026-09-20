@@ -98,6 +98,22 @@ can walk through, and a reader format its reader does not speak denies every fob
 at that door. Unknown fields are dropped, numbers are held to their bounds, and
 a bad `readerMode` is refused with a 400 rather than passed on.
 
+`doorContact` and `doorHeldSec` control forced-open and held-open detection. A
+board with no free input reports `hasDoorContact: false` and ignores them; the
+admin app disables the control rather than offering a setting the door will drop.
+
+`openSetupPortal` asks the door to raise its setup AP at the **next** boot,
+alongside the connection it already has, for moving a door to a network the
+current one cannot reach. It is acted on when it **changes**: the door clears its
+own armed flag once a boot honours it, so a level comparison would re-arm on the
+next sync and the open network would come back after every reboot. Leaving it
+true does nothing further; set it false and true again to ask a second time.
+
+**There is deliberately no remote "reset WiFi".** It is the one command that
+cannot be confirmed, undone or retried: it arrives over the network it destroys,
+and the door comes back reachable only by someone standing next to it. Moving a
+door to another network is a device-side action that reverts on failure.
+
 The reader format takes effect **at the door's next boot**, because it decides
 which capture interrupts are attached. Each door reports the format it is
 *running* in its sync request, stored on the door row as `readerMode`, so the

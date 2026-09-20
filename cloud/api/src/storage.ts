@@ -162,6 +162,7 @@ export async function touchDoor(
   patch: {
     board?: string; firmware?: string; rosterRev?: number;
     bootId?: number; bootEpoch?: number; readerMode?: string;
+    hasDoorContact?: boolean;
   }
 ): Promise<void> {
   await table('Doors').upsertEntity(

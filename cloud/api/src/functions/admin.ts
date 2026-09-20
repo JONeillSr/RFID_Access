@@ -75,6 +75,20 @@ function sanitizeConfig(v: unknown): Record<string, unknown> | string {
   const err = num('relayHoldMs', 250, 30000) ?? num('resultHoldMs', 500, 30000);
   if (err) return err;
 
+  if (src.doorContact !== undefined) {
+    if (typeof src.doorContact !== 'boolean') return 'doorContact must be true or false';
+    out.doorContact = src.doorContact;
+  }
+  const heldErr = num('doorHeldSec', 0, 3600);
+  if (heldErr) return heldErr;
+
+  if (src.openSetupPortal !== undefined) {
+    if (typeof src.openSetupPortal !== 'boolean') {
+      return 'openSetupPortal must be true or false';
+    }
+    out.openSetupPortal = src.openSetupPortal;
+  }
+
   if (src.readerMode !== undefined) {
     if (src.readerMode !== 'cnd' && src.readerMode !== 'wiegand') {
       return "readerMode must be 'cnd' or 'wiegand'";
@@ -407,6 +421,7 @@ app.http('adminDoors', {
           // What the door reports running, so the UI can show a reader-format
           // change as pending until the door restarts.
           readerMode: d.readerMode ?? '',
+          hasDoorContact: d.hasDoorContact === true,
         });
       }
       doors.sort((a, b) => String(a.name).localeCompare(String(b.name)));

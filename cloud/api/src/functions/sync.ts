@@ -148,6 +148,9 @@ export async function sync(
     ...(body.readerMode === 'cnd' || body.readerMode === 'wiegand'
       ? { readerMode: body.readerMode }
       : {}),
+    ...(typeof body.hasDoorContact === 'boolean'
+      ? { hasDoorContact: body.hasDoorContact }
+      : {}),
     // Only once the boot's start is actually known: storing 0 would pin a boot
     // to "no clock" for its whole life even after NTP arrives.
     ...(bootEpoch > 0 ? { bootId: reportedBootId, bootEpoch } : {}),

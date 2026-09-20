@@ -144,7 +144,15 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
     groups: door.groups ?? [], fwHold: door.fwHold === true,
     relayHoldMs: cfg.relayHoldMs ?? '', resultHoldMs: cfg.resultHoldMs ?? '',
     readerMode: cfg.readerMode ?? '',
+    doorContact: cfg.doorContact === true,
+    doorHeldSec: cfg.doorHeldSec ?? '',
+    openSetupPortal: cfg.openSetupPortal === true,
   });
+
+  // Whether the board can take a contact at all. The C6 and C3 have no free
+  // input, so offering the setting there would promise something the door
+  // silently ignores. Doors on firmware before 2.8.2 do not report it.
+  const canContact = door.hasDoorContact === true;
 
   // What the door reports running, which is not what it has been configured
   // with until it restarts: the format decides which interrupts it attaches.
@@ -155,7 +163,9 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
   const num = (v) => (v === '' || v === null ? null : Number(v));
   const relayOk = rec.relayHoldMs === '' || (Number.isFinite(num(rec.relayHoldMs)) && num(rec.relayHoldMs) > 0);
   const resultOk = rec.resultHoldMs === '' || (Number.isFinite(num(rec.resultHoldMs)) && num(rec.resultHoldMs) > 0);
-  const valid = rec.name.trim() && relayOk && resultOk;
+  const heldOk = rec.doorHeldSec === '' ||
+    (Number.isInteger(num(rec.doorHeldSec)) && num(rec.doorHeldSec) >= 0 && num(rec.doorHeldSec) <= 3600);
+  const valid = rec.name.trim() && relayOk && resultOk && heldOk;
 
   const submit = () => {
     // Only send config keys that have a value, and preserve anything already in
@@ -165,6 +175,9 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
     if (rec.relayHoldMs === '') delete config.relayHoldMs; else config.relayHoldMs = num(rec.relayHoldMs);
     if (rec.resultHoldMs === '') delete config.resultHoldMs; else config.resultHoldMs = num(rec.resultHoldMs);
     if (rec.readerMode === '') delete config.readerMode; else config.readerMode = rec.readerMode;
+    config.doorContact = rec.doorContact;
+    config.openSetupPortal = rec.openSetupPortal;
+    if (rec.doorHeldSec === '') delete config.doorHeldSec; else config.doorHeldSec = num(rec.doorHeldSec);
 
     onSave({
       deviceId: rec.deviceId, name: rec.name, site: rec.site,
@@ -227,6 +240,50 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
           A reader that is not actually sending Wiegand will stop working
           entirely — every fob denied, with the error count on the door's status
           page climbing. Change it back here if that happens.
+        </div>
+      )}
+
+      {canContact ? (
+        <>
+          <Check label="Door contact fitted" checked={rec.doorContact}
+                 onChange={(v) => set('doorContact', v)}
+                 hint="A magnetic reed contact on the frame, closed when the door is shut. Reports a door forced open or held open." />
+
+          {rec.doorContact && (
+            <Field label="Held-open alert (seconds)"
+                   hint="How long the door may stay open after a release ends before it is reported held open. 0 turns the held-open alert off; forced alerts still work."
+                   error={heldOk ? null : 'Must be 0-3600.'}>
+              <Text value={rec.doorHeldSec} onInput={(v) => set('doorHeldSec', v)} placeholder="60" />
+            </Field>
+          )}
+
+          {rec.doorContact && !cfg.doorContact && (
+            <div class="consequence warn">
+              Turn this on only once a contact is actually wired. An unconnected
+              input reads as an open door, so the first thing you will see is a
+              forced-open alert that is not real.
+            </div>
+          )}
+        </>
+      ) : (
+        <div class="consequence">
+          This door's board has no free input for a door contact, so forced-open
+          and held-open detection are unavailable on it.
+        </div>
+      )}
+
+      <Check label="Open the setup network at the next restart" checked={rec.openSetupPortal}
+             onChange={(v) => set('openSetupPortal', v)}
+             hint="For moving this door to a WiFi network the current one cannot reach. It keeps working and stays online throughout." />
+
+      {rec.openSetupPortal && !cfg.openSetupPortal && (
+        <div class="consequence warn">
+          Nothing happens until the door restarts, and then someone has to be
+          within WiFi range of it. The setup network is <strong>open</strong> —
+          anyone in range can reach the door while it is up — so it closes itself
+          after 30 minutes. To move a door to a network you can already reach,
+          use the WiFi fields on the door's own setup page instead: it tries the
+          new network and returns to this one if it cannot join.
         </div>
       )}
 

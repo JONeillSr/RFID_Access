@@ -91,6 +91,23 @@ export interface DoorConfig {
    * `readerMode` (what it is running) to see a change still pending.
    */
   readerMode?: ReaderMode;
+  /**
+   * A reed contact is fitted to this door. Off by default: an unwired input
+   * reads as an open door and would raise a forced-open alert immediately.
+   * A board with no free input ignores this; see `hasDoorContact`.
+   */
+  doorContact?: boolean;
+  /** Seconds a door may stay open after a release before it is reported held open; 0 = off. */
+  doorHeldSec?: number;
+  /**
+   * Raise the setup AP at the door's NEXT boot, alongside its normal connection,
+   * so someone on site can move it to a network this one cannot reach. The door
+   * keeps working throughout and closes the AP again after 30 minutes.
+   *
+   * Acted on when it CHANGES. Leaving it true does not re-raise the AP on later
+   * boots; set it false and true again to ask a second time.
+   */
+  openSetupPortal?: boolean;
   /** Minutes past midnight, local to the door's timezone. */
   schedule?: {
     enabled: boolean;
@@ -118,6 +135,8 @@ export interface Door {
   rosterRev?: number;
   /** Reader format the door reported running at its last sync. */
   readerMode?: ReaderMode;
+  /** Whether the door's board can take a contact at all (reported by the door). */
+  hasDoorContact?: boolean;
   /**
    * Hold this door back from firmware offers.
    *
@@ -250,6 +269,12 @@ export interface SyncRequest {
   rosterRev: number;
   /** Reader line format the device is RUNNING, not the one configured for it. */
   readerMode?: ReaderMode;
+  /**
+   * This board has an input a door contact can land on. The C6 and C3 have no
+   * free pin, so the admin app disables the control rather than offering a
+   * setting the door will ignore.
+   */
+  hasDoorContact?: boolean;
   events: DeviceEvent[];
 }
 
