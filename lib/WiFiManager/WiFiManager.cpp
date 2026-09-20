@@ -8,6 +8,11 @@ static const uint32_t RETRY_INTERVAL_MS  = 60000;    // idle time between attemp
 static const uint32_t RETRY_WINDOW_MS    = 15000;    // how long each attempt gets
 static const uint32_t PORTAL_IN_USE_MS   = 180000;   // leave a person using it alone
 
+// Moving to another network (see changeNetwork). Long enough for a slow DHCP
+// lease on a busy access point, short enough that a typo is not a long outage.
+static const uint32_t CHANGE_TRY_MS    = 25000;
+static const uint32_t CHANGE_REVERT_MS = 25000;
+
 /**
  * Set just before the reboot retrySavedNetwork() triggers, read once by the boot
  * that follows. RTC_NOINIT memory survives a software restart but not a power
@@ -393,6 +398,14 @@ void WiFiManager::begin() {
     s_recoveryBoot = 0;
 
     String ssid, pass;
+    if (_forcePortal) {
+        // Deliberate: someone is standing at the device asking for the portal.
+        // Credentials are kept, so a reboot with the button released returns to
+        // the normal network and nothing has been lost by pressing it.
+        Serial.println("[WiFi] Portal forced - skipping the saved network.");
+        startAP();
+        return;
+    }
     if (loadCredentials(ssid, pass)) {
         Serial.print("[WiFi] Connecting to "); Serial.println(ssid);
         startSTA(ssid, pass);
@@ -447,6 +460,11 @@ void WiFiManager::begin() {
  * to return to.
  */
 void WiFiManager::retrySavedNetwork() {
+    // A portal someone asked for must not reboot away underneath them: the
+    // saved network is still there and still works, so the retry would succeed
+    // within the minute and restart the device mid-typing.
+    if (_forcePortal) return;
+
     uint32_t now = millis();
 
     // Checked whether or not an attempt of ours is running: the connect begin()
@@ -476,6 +494,115 @@ void WiFiManager::retrySavedNetwork() {
     WiFi.begin(ssid.c_str(), pass.c_str());   // STA side only; mode stays AP_STA
 }
 
+/**
+ * Move to another network without being able to strand the device.
+ *
+ * Runs as a state machine from loop() rather than blocking: switching networks
+ * drops the connection the request arrived on, so the caller has to have
+ * answered already, and blocking here would stall whatever else the main loop
+ * drives -- on an access-control door, that includes releasing the strike.
+ *
+ * The old credentials are held in RAM for the attempt. A power cut mid-change
+ * therefore comes back on the NEW ones, which is the right way round: they are
+ * what someone asked for, and the boot-time portal is the way out if they are
+ * wrong.
+ */
+void WiFiManager::driveNetworkChange(uint32_t now) {
+    switch (_change) {
+    case CHANGE_TRYING:
+        if (WiFi.status() == WL_CONNECTED) {
+            _change = CHANGE_DONE;
+            _wasConnected = true;
+            saveCredentials(_newSsid, _newPass);   // only now is it worth keeping
+            Serial.print("[WiFi] Joined "); Serial.print(_newSsid);
+            Serial.println(" - keeping it.");
+            startMDNS();
+            startTimeSync();
+            if (_onConnected) _onConnected();
+            return;
+        }
+        if (now - _changeStartedMs < CHANGE_TRY_MS) return;
+        Serial.print("[WiFi] Could not join "); Serial.print(_newSsid);
+        Serial.println(" - going back.");
+        saveCredentials(_oldSsid, _oldPass);
+        WiFi.disconnect(/*wifioff=*/false, /*eraseap=*/false);
+        WiFi.begin(_oldSsid.c_str(), _oldPass.c_str());
+        _changeStartedMs = now;
+        _change = CHANGE_REVERTING;
+        return;
+
+    case CHANGE_REVERTING:
+        if (WiFi.status() == WL_CONNECTED) {
+            _change = CHANGE_FAILED;           // failed to MOVE; the door is fine
+            _wasConnected = true;
+            Serial.print("[WiFi] Back on "); Serial.println(_oldSsid);
+            startMDNS();
+            startTimeSync();
+            if (_onConnected) _onConnected();
+            return;
+        }
+        if (now - _changeStartedMs < CHANGE_REVERT_MS) return;
+        // The old network did not come back either -- it may have genuinely
+        // gone away, which is often why someone was moving the device. The
+        // credentials on disk are the old ones, so ordinary reconnect
+        // supervision takes it from here, and a reboot reaches the portal.
+        Serial.println("[WiFi] Neither network joined; resuming normal reconnect.");
+        _change = CHANGE_FAILED;
+        return;
+
+    default:
+        return;
+    }
+}
+
+bool WiFiManager::changeNetwork(const String& ssid, const String& pass) {
+    if (ssid.length() == 0) return false;
+    if (_changePending || _change == CHANGE_TRYING || _change == CHANGE_REVERTING) {
+        return false;                      // one at a time
+    }
+    _newSsid = ssid;
+    _newPass = pass;
+    _changePending = true;                 // picked up by loop()
+    return true;
+}
+
+void WiFiManager::openSetupAP() {
+    if (_setupAP || _state == STATE_AP) return;
+
+    // AP_STA keeps the existing station link up: the point of this is to offer
+    // the setup network WITHOUT giving up the one that works.
+    WiFi.mode(WIFI_AP_STA);
+    if (strlen(_apPass) >= 8) WiFi.softAP(_apSsid, _apPass);
+    else                      WiFi.softAP(_apSsid);
+    delay(100);
+
+    IPAddress apIP = WiFi.softAPIP();
+    // No web server started here. In AP_STA one listener on port 80 already
+    // answers on both interfaces, and the application owns it -- a second
+    // WebServer(80) would simply fail to bind.
+    _dnsServer = new DNSServer();
+    _dnsServer->setErrorReplyCode(DNSReplyCode::NoError);
+    _dnsServer->start(DNS_PORT, "*", apIP);
+    _setupAP = true;
+
+    Serial.print("[WiFi] Setup AP raised alongside the network: ");
+    Serial.print(_apSsid); Serial.print(" -> http://"); Serial.println(apIP);
+    if (_onProvisioningStarted) _onProvisioningStarted();
+}
+
+void WiFiManager::closeSetupAP() {
+    if (!_setupAP) return;
+    if (_dnsServer != nullptr) {
+        _dnsServer->stop();
+        delete _dnsServer;
+        _dnsServer = nullptr;
+    }
+    WiFi.softAPdisconnect(true);
+    WiFi.mode(WIFI_STA);
+    _setupAP = false;
+    Serial.println("[WiFi] Setup AP closed.");
+}
+
 void WiFiManager::loop() {
     if (_state != STATE_STA) {
         // The portal itself is served by its own task; the main loop's only job
@@ -485,6 +612,30 @@ void WiFiManager::loop() {
     }
 
     unsigned long now = millis();
+
+    // The side AP has no task of its own, so its captive DNS is pumped here.
+    // Cheap and non-blocking; it must run on every pass, not on the 5 s tick.
+    if (_setupAP && _dnsServer) _dnsServer->processNextRequest();
+
+    // Start a requested change here rather than in changeNetwork(), so the radio
+    // is only touched from this task.
+    if (_changePending) {
+        _changePending = false;
+        if (!loadCredentials(_oldSsid, _oldPass)) { _oldSsid = ""; _oldPass = ""; }
+        Serial.print("[WiFi] Trying "); Serial.println(_newSsid);
+        WiFi.disconnect(/*wifioff=*/false, /*eraseap=*/false);
+        WiFi.begin(_newSsid.c_str(), _newPass.c_str());
+        _changeStartedMs = now;
+        _change = CHANGE_TRYING;
+        _wasConnected = false;
+    }
+    if (_change == CHANGE_TRYING || _change == CHANGE_REVERTING) {
+        // Ordinary reconnect supervision would fight the attempt -- it would see
+        // "not connected" and call reconnect() on whatever is in flight.
+        driveNetworkChange(now);
+        return;
+    }
+
     if (now - _lastCheck < 5000) return;
     _lastCheck = now;
 

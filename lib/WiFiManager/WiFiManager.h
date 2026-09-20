@@ -59,7 +59,57 @@ public:
     IPAddress localIP()   const;
 
     // Erase stored credentials and reboot into provisioning mode.
+    //
+    // DESTRUCTIVE AND UNRECOVERABLE FROM THE NETWORK: the device comes back in
+    // the portal, reachable only by someone in radio range. Prefer
+    // changeNetwork(), which reverts on failure, or openSetupAP(), which raises
+    // the portal without giving up the working connection.
     void clearCredentials();
+
+    // ---- Moving to another network ----------------------------------------
+
+    /// What a requested network change is doing. Read for a status page.
+    enum ChangeState : uint8_t {
+        CHANGE_IDLE = 0,
+        CHANGE_TRYING,     // attempting the new network
+        CHANGE_REVERTING,  // it failed; going back to the one that worked
+        CHANGE_DONE,       // joined the new network
+        CHANGE_FAILED,     // could not join; the previous network was restored
+    };
+
+    /// Ask to move to another network, WITHOUT risking the door.
+    ///
+    /// Returns immediately; the work happens in loop(), so the caller (a web
+    /// handler) can answer before the radio drops the connection the request
+    /// arrived on. The new credentials are tried, kept only once the device has
+    /// an address, and otherwise replaced by the ones that worked -- a typo
+    /// costs a reconnect, not a visit. False if a change is already running.
+    bool changeNetwork(const String& ssid, const String& pass);
+
+    ChangeState changeState() const { return _change; }
+    /// SSID of the change in flight, or of the last one attempted.
+    String      changeSsid()  const { return _newSsid; }
+
+    /// Raise the setup AP while STAYING on the current network.
+    ///
+    /// Unlike the boot-time portal this does not take the device off the air and
+    /// does not start a web server: in WIFI_AP_STA one server on port 80 already
+    /// answers on both interfaces, and the application owns that server. The
+    /// caller is expected to serve its own Wi-Fi page (see changeNetwork).
+    ///
+    /// For the case the portal cannot reach: a door on a network that still
+    /// works, which has to be moved to one it cannot see from there.
+    void openSetupAP();
+    void closeSetupAP();
+    bool setupAPOpen() const { return _setupAP; }
+
+    /// Skip the saved network at boot and go straight to the portal. Call before
+    /// begin(). Used for a physical recovery path (holding the exit button at
+    /// power-on), so a door on an unreachable network can be re-homed with no
+    /// network and no USB. The saved credentials are NOT erased, and the
+    /// background retry is suppressed so the portal does not reboot away
+    /// underneath whoever is standing there using it.
+    void forcePortal() { _forcePortal = true; }
 
 private:
     enum State { STATE_STA, STATE_AP };
@@ -68,6 +118,15 @@ private:
     const char*   _apPass;
     uint32_t      _connectTimeout;
     State         _state        = STATE_STA;
+    bool          _forcePortal  = false;
+    bool          _setupAP      = false;   // AP raised alongside a live STA link
+
+    // Network change in flight. Driven from loop(); see changeNetwork().
+    ChangeState _change        = CHANGE_IDLE;
+    String      _newSsid, _newPass;        // the candidate
+    String      _oldSsid, _oldPass;        // what to go back to
+    uint32_t    _changeStartedMs = 0;
+    bool        _changePending   = false;  // requested, not yet started
     bool          _wasConnected = false;
     unsigned long _lastCheck    = 0;
 
@@ -98,6 +157,7 @@ private:
     void   startMDNS();             // (re)start mDNS responder if a hostname is set
     void   startTimeSync();         // (re)start SNTP if a timezone is set
     void   startAP();
+    void   driveNetworkChange(uint32_t now);   // the change state machine
     void   stopAP();                // release portal server/DNS/task
     void   retrySavedNetwork();     // portal mode: find the way back on our own
     void   setupPortalRoutes();

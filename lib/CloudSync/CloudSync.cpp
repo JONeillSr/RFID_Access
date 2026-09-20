@@ -253,6 +253,7 @@ bool CloudSync::syncOnce(String& err) {
     // What this door is actually running, so the admin app can tell a config it
     // has merely stored from one the door has applied.
     if (_readerMode.length()) req["readerMode"] = _readerMode;
+    if (_hasContactKnown) req["hasDoorContact"] = _hasDoorContact;
 
     JsonArray evs = req["events"].to<JsonArray>();
     for (size_t i = 0; i < n; i++) {
@@ -410,6 +411,18 @@ bool CloudSync::syncOnce(String& err) {
             cfg.schedStartMin  = sc["startMin"] | 0;
             cfg.schedEndMin    = sc["endMin"]   | 0;
             cfg.schedDaysMask  = sc["daysMask"] | 0;
+        }
+        if (c["doorContact"].is<bool>()) {
+            cfg.hasDoorContact = true;
+            cfg.doorContact    = c["doorContact"].as<bool>();
+        }
+        if (c["doorHeldSec"].is<uint32_t>()) {
+            cfg.hasDoorHeldSec = true;
+            cfg.doorHeldSec    = c["doorHeldSec"].as<uint32_t>();
+        }
+        if (c["openSetupPortal"].is<bool>()) {
+            cfg.hasSetupAP = true;
+            cfg.setupAP    = c["openSetupPortal"].as<bool>();
         }
         if (c["readerMode"].is<const char*>()) {
             String m = c["readerMode"].as<String>();

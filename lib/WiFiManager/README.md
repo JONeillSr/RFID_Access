@@ -14,6 +14,12 @@ own the application's web/admin surface — that's a separate concern (see the
 - **STA lifecycle** — blocking first connect in `begin()` (with timeout and
   fallback to the portal), then non-blocking reconnect supervision from
   `loop()` at a 5 s cadence.
+- **Moving to another network** — `changeNetwork()` tries new credentials and
+  keeps them only once the device has an address, otherwise restoring the ones
+  that worked. See *Changing network* below.
+- **A portal that does not cost the connection** — `openSetupAP()` raises the
+  setup AP alongside a live station link, and `forcePortal()` opens the portal at
+  boot with no network at all.
 - **The portal is not a dead end** — with saved credentials, `loop()` keeps
   retrying the saved network while the portal is up, and reboots into normal
   operation once it can join. See *Leaving the portal* below.
@@ -136,6 +142,51 @@ The core's own auto-reconnect is switched off while the portal is up. It treats
 "network not found" as transient and retries back to back, which would keep the
 radio scanning for the whole time. Nothing switches it back on, because the portal
 is only ever left by rebooting.
+
+## Changing network
+
+The saved network used to be unchangeable once set: the portal appears only when
+the device cannot join, so a working device could not be moved at all. Three ways
+out, in the order to reach for them:
+
+| | Use when | Costs |
+|---|---|---|
+| `changeNetwork(ssid, pass)` | the new network is reachable from where you are | nothing if it fails — the device returns to the working network |
+| `openSetupAP()` | the new network is *not* reachable from the current one | an open AP for as long as the caller leaves it up |
+| `forcePortal()` before `begin()` | the device is on a network nobody can reach | needs physical access |
+
+**`changeNetwork()` is asynchronous on purpose.** Switching networks drops the
+connection the request arrived on, so a web handler has to answer *before* the
+radio moves; and blocking here would stall whatever else the main loop drives —
+on an access-control door, that includes releasing the door strike. It returns
+immediately and the work happens in `loop()`:
+
+1. the current credentials are kept in RAM, the new ones tried for 25 s;
+2. joined → they are saved and `onConnected` fires (`CHANGE_DONE`);
+3. not joined → the old ones are written back and reconnected (`CHANGE_FAILED` —
+   failed to *move*; the device is fine);
+4. neither joins → ordinary reconnect supervision resumes, and a reboot reaches
+   the portal.
+
+A power cut mid-attempt comes back on the **new** credentials, which is the right
+way round: they are what someone asked for, and the portal is the way out if they
+are wrong.
+
+**`openSetupAP()` starts no web server.** In `WIFI_AP_STA` a single listener on
+port 80 already answers on both interfaces, and the application owns that server
+— a second `WebServer(80)` would simply fail to bind. The caller serves its own
+Wi-Fi page. Its captive DNS is pumped from `loop()`, since there is no portal
+task in this mode. **The AP is open**, so whoever raises it should take it down:
+the caller owns that timeout, not this module.
+
+**`forcePortal()` does not erase anything.** The saved credentials stay, the
+background retry is suppressed (or the portal would reboot away underneath
+whoever is standing there using it), and a reboot with the trigger released
+returns the device to its network.
+
+`clearCredentials()` still exists and is still the blunt instrument: it erases
+and reboots into the portal, reachable only by someone in radio range. Prefer any
+of the three above.
 
 ## Behaviour notes
 

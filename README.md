@@ -45,6 +45,11 @@ firmware updates.
   power/ready indicator — both are built into the reader.
 - **WiFi provisioning** — first boot raises a captive-portal AP with a network
   scanner; credentials are stored and reused on subsequent boots.
+- **Changing WiFi without a site visit** — `/setup` moves a door to another
+  network and **returns it to the working one if the new network does not come
+  up**. For a network the door cannot see from where it is, the admin app arms
+  the setup AP for its next restart, or holding the exit button at power-on
+  opens the portal with no network at all.
 - **mDNS** — reachable at `http://<hostname>.local` once connected.
 - **Per-door identity** — one firmware image for every door. Each board derives a
   unique device ID from its MAC, so units never collide on the network, and

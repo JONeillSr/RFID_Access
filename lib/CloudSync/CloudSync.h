@@ -151,6 +151,16 @@ public:
 
         bool     hasReaderMode   = false;
         bool     readerWiegand   = false;
+
+        bool     hasDoorContact  = false;   // a doorContact value was sent
+        bool     doorContact     = false;
+        bool     hasDoorHeldSec  = false;
+        uint32_t doorHeldSec     = 0;
+
+        /// Raise the setup AP at the next boot. One-shot: the device clears it
+        /// once honoured, so it cannot become a standing open network.
+        bool     hasSetupAP      = false;
+        bool     setupAP         = false;
     };
 
     /// Called on the sync task whenever a response carries a config block.
@@ -164,6 +174,11 @@ public:
     /// the admin app can tell a pending format change from an applied one.
     /// Set once in setup(), after the format is resolved.
     void setReaderMode(const String& name) { _readerMode = name; }
+
+    /// Whether this board has an input a door contact can use at all. Reported
+    /// so the admin app can disable the setting rather than offer one the door
+    /// will ignore.
+    void setHasDoorContact(bool v) { _hasDoorContact = v; _hasContactKnown = true; }
 
     /// Where this module reports what it decided.
     ///
@@ -199,6 +214,8 @@ private:
     SafeToUpdateFn _safeToUpdate = nullptr;
     ConfigFn       _onConfig      = nullptr;
     String         _readerMode;              // empty = not reported
+    bool           _hasDoorContact  = false;
+    bool           _hasContactKnown = false;
 
     // A firmware offer approved by syncOnce() but not yet applied. It is held
     // here rather than actioned inline so the download starts only after

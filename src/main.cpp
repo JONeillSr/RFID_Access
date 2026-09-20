@@ -89,6 +89,23 @@ static const char* const KEY_DOOR_HELD_SEC = "doorHeldSec";   // uint: held-open
 static const char* const KEY_READER_MODE   = "readerMode";    // uint: PaxtonReader::Mode
 static const char* const KEY_RELAY_HOLD_MS  = "relayHoldMs";   // uint: ms
 static const char* const KEY_RESULT_HOLD_MS = "resultHoldMs";  // uint: ms
+static const char* const KEY_SETUP_AP       = "setupAP";       // bool: raise the setup AP at the next boot
+// The last value the cloud sent for the setup AP. The flag above is consumed at
+// boot, so comparing the cloud's value against IT would re-arm on the next sync
+// and bring the open network back after every reboot. This records what the
+// cloud last asked for, so the door acts on the request changing, not on it
+// still being set.
+static const char* const KEY_SETUP_AP_REQ   = "setupApReq";    // bool: last cloud request
+
+// How long the side setup AP stays up before closing itself. It is an OPEN
+// network, so it is a way in for as long as it exists; it should outlast someone
+// walking to the door and typing, and nothing more.
+#define SETUP_AP_TIMEOUT_MS  (30UL * 60UL * 1000UL)
+
+// How long the exit button must be held AT POWER-ON to force the setup portal.
+// Long enough that nobody does it by leaning on the button, short enough to hold
+// on a ladder.
+#define PORTAL_BUTTON_HOLD_MS  3000
 
 // Short tag leading this project's device IDs, e.g. "rfid-a1b2c3". The rest of
 // the ID comes from the board's MAC, so every unit is unique with no per-door
@@ -186,7 +203,12 @@ static volatile unsigned long resultUntil = 0;
 // loop(); read by the OLED idle screen and the /status provider.
 static volatile bool gSchedActive = false;
 
+// When the side setup AP should close itself, or 0 if it is not up. Nothing to
+// do with the door contact below: the AP exists on every board.
+static unsigned long gSetupApCloseAt = 0;
+
 #if PIN_DOOR_CONTACT >= 0
+
 // Door contact. The state machine is driven only from loop(); the web task only
 // reads its scalars for /status, and asks for a reload through gDoorReload rather
 // than touching it, since begin() racing update() would corrupt its state.
@@ -630,11 +652,49 @@ void setup() {
     wifiMgr.setHostname(gHostname.c_str());  // device reachable as <name>.local
     wifiMgr.setTimeSync(TZ_INFO);            // NTP on connect; feeds the unlock
                                              // schedule (locked until first sync)
+    // -- Physical way back into the portal ---------------------------------
+    // Hold the exit button while powering on and the door opens the setup portal
+    // instead of joining its saved network. This is the answer to a door left on
+    // a network nobody can reach any more: it needs no network, no cloud and no
+    // USB. Credentials are not erased, so releasing the button and rebooting
+    // returns the door to normal.
+#if PIN_EXIT_BTN >= 0
+    if (digitalRead(PIN_EXIT_BTN) == LOW) {
+        webService.log("[wifi] exit button held at boot - hold for the setup portal");
+        unsigned long held = millis();
+        while (digitalRead(PIN_EXIT_BTN) == LOW &&
+               millis() - held < PORTAL_BUTTON_HOLD_MS) {
+            delay(50);
+        }
+        if (digitalRead(PIN_EXIT_BTN) == LOW) {
+            wifiMgr.forcePortal();
+            webService.log("[wifi] FORCED SETUP PORTAL - saved network skipped");
+            if (gOledOk) {
+                xSemaphoreTake(oledMutex, portMAX_DELAY);
+                gDisplay.showMessage2("WiFi Setup", "Join AP: RFID-Setup", "-> 192.168.4.1");
+                xSemaphoreGive(oledMutex);
+            }
+        }
+    }
+#endif
+
     wifiMgr.begin();   // blocking: STA on stored credentials, else provisioning AP
 
     // Reader + access control are independent of WiFi; always run them.
     xTaskCreate(readerTask, "reader", 4096, NULL, 2, NULL);
     xTaskCreate(accessTask, "access", 4096, NULL, 2, NULL);
+
+    // The admin app can ask for the setup AP to be raised at the next boot, for
+    // a door that has to move to a network it cannot see from the current one.
+    // Consumed here, so it fires once and only once: an open AP that came back
+    // after every reboot would be a standing way in.
+    if (!wifiMgr.isProvisioning() && settings.getBool(KEY_SETUP_AP, false)) {
+        settings.setBool(KEY_SETUP_AP, false);
+        wifiMgr.openSetupAP();
+        gSetupApCloseAt = millis() + SETUP_AP_TIMEOUT_MS;
+        webService.log("[wifi] setup AP raised as requested by the admin app");
+        eventLog.append(EventLog::EVT_CONFIG, EventLog::R_NONE, false, "setupAP=on");
+    }
 
     // Web + OTA only in STA mode; provisioning mode owns port 80.
     if (!wifiMgr.isProvisioning()) {
@@ -671,6 +731,53 @@ void setup() {
                     "Door and site names apply immediately. A changed mDNS hostname only "
                     "takes effect after a reboot, since the responder is started at boot."
                     "</div>";
+
+            // ---- WiFi ----
+            // NOT gated on pairing, unlike the roster, schedule and reader
+            // format: which network a door sits on is local infrastructure, and
+            // the cloud cannot set it -- a wrong value would take the door off
+            // the air, which is precisely what the cloud could not then fix.
+            {
+                html += "<h2>WiFi</h2>";
+                html += "<div class='hint'>On <b>" + WebService::escapeText(WiFi.SSID()) + "</b>";
+                if (wifiMgr.setupAPOpen()) html += ", setup AP also up";
+                html += ".";
+                switch (wifiMgr.changeState()) {
+                case WiFiManager::CHANGE_TRYING:
+                    html += " <span style='color:#e0a458'>Trying " +
+                            WebService::escapeText(wifiMgr.changeSsid()) + "&hellip;</span>";
+                    break;
+                case WiFiManager::CHANGE_REVERTING:
+                    html += " <span style='color:#e0a458'>Could not join " +
+                            WebService::escapeText(wifiMgr.changeSsid()) +
+                            "; going back.</span>";
+                    break;
+                case WiFiManager::CHANGE_FAILED:
+                    html += " <span style='color:#e0556b'>Could not join " +
+                            WebService::escapeText(wifiMgr.changeSsid()) +
+                            " &mdash; check the name and password. The door stayed "
+                            "on its previous network.</span>";
+                    break;
+                case WiFiManager::CHANGE_DONE:
+                    html += " <span style='color:#5fd3a0'>Moved to " +
+                            WebService::escapeText(wifiMgr.changeSsid()) + ".</span>";
+                    break;
+                default: break;
+                }
+                html += "</div>";
+                html += "<label>Move to network</label>";
+                html += "<input type='text' name='wifiSsid' value='' autocomplete='off' "
+                        "spellcheck='false' placeholder='Leave blank to stay on the current network'>";
+                html += "<label>Password</label>";
+                html += "<input type='password' name='wifiPass' value='' "
+                        "autocomplete='new-password' placeholder='Blank for an open network'>";
+                html += "<div class='hint'>The door tries the new network and <b>keeps it only "
+                        "once it has an address</b>; if it cannot join, it returns to the one "
+                        "that works. You will lose this page while it tries &mdash; reconnect to "
+                        "whichever network it ends up on and reload.<br>"
+                        "If the new network is not reachable from here, arm the setup AP in the "
+                        "admin app, or hold the exit button while powering the door on.</div>";
+            }
 
             // ---- Reader format ----
             {
@@ -777,6 +884,24 @@ void setup() {
         webService.setSetupSaveHandler([](WebServer& s) {
             if (s.hasArg("doorName")) identity.setDoorName(s.arg("doorName"));
             if (s.hasArg("siteName")) identity.setSiteName(s.arg("siteName"));
+
+            // WiFi change. Handed to WiFiManager, which tries it from loop()
+            // and reverts on failure -- deliberately not done here, because
+            // switching networks drops the connection this request arrived on
+            // and the answer below has to get out first.
+            if (s.hasArg("wifiSsid")) {
+                String newSsid = s.arg("wifiSsid");
+                newSsid.trim();
+                if (newSsid.length() && newSsid != WiFi.SSID()) {
+                    if (wifiMgr.changeNetwork(newSsid, s.arg("wifiPass"))) {
+                        webService.log("[wifi] asked to move to " + newSsid);
+                        eventLog.append(EventLog::EVT_CONFIG, EventLog::R_NONE, false, "wifi");
+                    } else {
+                        webService.log("[wifi] change to " + newSsid +
+                                       " refused - one already in progress");
+                    }
+                }
+            }
 
             // Reader format. Saved now, applied at the next boot (see setup()).
             // Logged as a config event for the same reason as the door contact:
@@ -963,6 +1088,18 @@ void setup() {
 #else
             body += "Contact:  none (no free input on this board)\n";
 #endif
+            body += "WiFi:     " + WiFi.SSID();
+            if (wifiMgr.setupAPOpen()) body += "  [SETUP AP OPEN]";
+            switch (wifiMgr.changeState()) {
+            case WiFiManager::CHANGE_TRYING:
+                body += "  [trying " + wifiMgr.changeSsid() + "]"; break;
+            case WiFiManager::CHANGE_REVERTING:
+                body += "  [reverting from " + wifiMgr.changeSsid() + "]"; break;
+            case WiFiManager::CHANGE_FAILED:
+                body += "  [could not join " + wifiMgr.changeSsid() + " - stayed put]"; break;
+            default: break;
+            }
+            body += "\n";
             body += "Enrolled: " + String(acCount()) + " card(s)\n";
             // Roster file size is the honest persistence check: a populated
             // in-RAM list with no file on disk means every reboot re-migrates
@@ -1070,6 +1207,11 @@ void setup() {
         // What this door is running, so the admin app can show a format change
         // as pending rather than applied. Wire values, not display labels.
         cloudSync.setReaderMode(paxton.mode() == PaxtonReader::WIEGAND ? "wiegand" : "cnd");
+#if PIN_DOOR_CONTACT >= 0
+        cloudSync.setHasDoorContact(true);
+#else
+        cloudSync.setHasDoorContact(false);
+#endif
 
         // Per-door configuration from the admin app, applied on the sync task.
         // Every value is compared against what is already in effect, because
@@ -1114,6 +1256,40 @@ void setup() {
                     changed = true;
                 }
             }
+#if PIN_DOOR_CONTACT >= 0
+            if (c.hasDoorContact && c.doorContact != settings.getBool(KEY_DOOR_CONTACT, false)) {
+                settings.setBool(KEY_DOOR_CONTACT, c.doorContact);
+                webService.log(String("[cloud] door contact ") +
+                               (c.doorContact ? "enabled" : "disabled"));
+                gDoorReload = true;          // applied by loop(), not here
+                changed = true;
+            }
+            if (c.hasDoorHeldSec) {
+                uint32_t v = c.doorHeldSec > 3600 ? 3600 : c.doorHeldSec;
+                if (v != settings.getUInt(KEY_DOOR_HELD_SEC, DOOR_HELD_DEFAULT_SEC)) {
+                    settings.setUInt(KEY_DOOR_HELD_SEC, v);
+                    webService.log("[cloud] held-open limit set to " + String(v) + "s");
+                    gDoorReload = true;
+                    changed = true;
+                }
+            }
+#endif
+            // Armed, not acted on: raising the AP takes effect at the next boot,
+            // so the open network only appears when someone is there to restart
+            // the door -- and an admin who changes their mind can clear it first.
+            //
+            // Edge-triggered against the last REQUEST, not against the armed
+            // flag: that flag is cleared when the boot honours it, so a level
+            // comparison would re-arm on the very next sync and the open network
+            // would return after every reboot until someone noticed.
+            if (c.hasSetupAP && c.setupAP != settings.getBool(KEY_SETUP_AP_REQ, false)) {
+                settings.setBool(KEY_SETUP_AP_REQ, c.setupAP);
+                settings.setBool(KEY_SETUP_AP, c.setupAP);
+                webService.log(String("[cloud] setup AP ") +
+                               (c.setupAP ? "ARMED for the next boot" : "disarmed"));
+                changed = true;
+            }
+
             if (c.hasReaderMode) {
                 uint32_t want = c.readerWiegand ? PaxtonReader::WIEGAND
                                                 : PaxtonReader::CLOCK_AND_DATA;
@@ -1199,6 +1375,20 @@ void loop() {
             digitalWrite(PIN_RELAY, LOW);
             ledOff();              // granted window over → LED dark
             paxton.ledIdle();      // reader back to amber "ready"
+        }
+    }
+
+    // The setup AP is an open network, so it closes itself rather than waiting
+    // for someone to remember. A Wi-Fi change in progress keeps it alive: that
+    // is exactly when someone is using it.
+    if (gSetupApCloseAt != 0 && (long)(millis() - gSetupApCloseAt) >= 0) {
+        if (wifiMgr.changeState() == WiFiManager::CHANGE_TRYING ||
+            wifiMgr.changeState() == WiFiManager::CHANGE_REVERTING) {
+            gSetupApCloseAt = millis() + 60000;      // look again in a minute
+        } else {
+            gSetupApCloseAt = 0;
+            wifiMgr.closeSetupAP();
+            webService.log("[wifi] setup AP closed after its timeout");
         }
     }
 
