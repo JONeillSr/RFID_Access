@@ -818,12 +818,23 @@ void setup() {
             {
                 bool     on      = settings.getBool(KEY_DOOR_CONTACT, false);
                 uint32_t heldSec = settings.getUInt(KEY_DOOR_HELD_SEC, DOOR_HELD_DEFAULT_SEC);
+                // Same rule as the reader format: while paired the admin app is
+                // the only writer. Both writing it meant the cloud silently won
+                // at the next sync, so a change made here looked applied and
+                // then undid itself minutes later with nothing said.
+                bool managedContact = cloudSync.paired();
                 html += "<label>Contact on GPIO " + String(PIN_DOOR_CONTACT) + "</label>";
-                html += "<select name='doorContact'>";
+                html += String("<select name='doorContact'") +
+                        (managedContact ? " disabled" : "") + ">";
                 html += String("<option value='0'") + (on ? "" : " selected") + ">Not fitted</option>";
                 html += String("<option value='1'") + (on ? " selected" : "") + ">Fitted</option>";
                 html += "</select>";
-                html += "<div class='hint'>A magnetic contact on the frame, <b>closed when the door is "
+                html += "<div class='hint'>";
+                if (managedContact) {
+                    html += "Set in the admin app, which is the only writer while this door is "
+                            "paired. Unpair below to set it here again.<br>";
+                }
+                html += "A magnetic contact on the frame, <b>closed when the door is "
                         "shut</b>, between this pin and GND. Leave <b>Not fitted</b> until one is "
                         "wired: an empty input reads as an open door and raises a forced alert.<br>"
                         "If the door can be opened from inside without the exit button (a lever "
@@ -831,7 +842,7 @@ void setup() {
                         "sensor is wired to the exit button input.</div>";
                 html += "<label>Held-open alert (seconds)</label>";
                 html += "<input type='number' name='doorHeldSec' min='0' max='3600' value='" +
-                        String(heldSec) + "'>";
+                        String(heldSec) + "'" + (managedContact ? " disabled" : "") + ">";
                 html += "<div class='hint'>How long the door may stay open after a release ends "
                         "before it is reported held open. 0 turns the held-open alert off; "
                         "forced alerts still work.</div>";
@@ -930,7 +941,10 @@ void setup() {
             // Recorded as a config event when it changes. /setup is not
             // authenticated, and switching the contact off is exactly how someone
             // would silence a forced-door alert -- so it must leave a trace.
-            if (s.hasArg("doorContact") || s.hasArg("doorHeldSec")) {
+            // Disabled controls submit nothing, so a paired door normally never
+            // reaches here -- the check is what makes it a rule rather than a
+            // property of the HTML, since /setup has no login.
+            if ((s.hasArg("doorContact") || s.hasArg("doorHeldSec")) && !cloudSync.paired()) {
                 bool     wasOn   = settings.getBool(KEY_DOOR_CONTACT, false);
                 uint32_t wasHeld = settings.getUInt(KEY_DOOR_HELD_SEC, DOOR_HELD_DEFAULT_SEC);
                 bool     on      = s.hasArg("doorContact") ? s.arg("doorContact") == "1" : wasOn;

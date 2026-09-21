@@ -132,6 +132,20 @@
 //  Cross-board peripheral facts (not pins)
 // ────────────────────────────────────────────────────────────────────────────
 
+// Optional peripherals a board section may simply not have. Defaulted to
+// "absent" so an omission is a missing feature rather than a puzzling build
+// failure: an undefined name evaluates to 0 in #if, so `#if PIN_DOOR_CONTACT >= 0`
+// would be TRUE for a board that never defined it, and the guarded code would
+// then reference a name that does not exist. A new board that omits these gets a
+// working build without a door contact or exit button, which is the right
+// default for bring-up.
+#ifndef PIN_EXIT_BTN
+#define PIN_EXIT_BTN     -1
+#endif
+#ifndef PIN_DOOR_CONTACT
+#define PIN_DOOR_CONTACT -1
+#endif
+
 // Door contact polarity: the level PIN_DOOR_CONTACT reads when the door is OPEN.
 // With the input pulled up, HIGH means the contact is open-circuit. Use a contact
 // that is CLOSED when the door is shut: a cut or unplugged wire then reads as an
