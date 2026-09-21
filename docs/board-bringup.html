@@ -269,7 +269,7 @@
     <h1>Bringing up a new board</h1>
     <div class="meta">
       Worked example: <b>ESP32-S31</b><br>
-      RFID_Access &middot; firmware <b>2.6.0</b><br>
+      RFID_Access &middot; firmware <b>2.8.2</b><br>
       Fleet <b>jtc-prod-rfidaccess-eastus2</b>
     </div>
   </header>
@@ -327,13 +327,14 @@ pio boards espressif32 | findstr /i "s31"</pre>
         <div class="node">3</div>
         <div>
           <h3>Define the board</h3>
-          <p>Two files. The pin map is the part that matters; everything else compiles already.</p>
-<pre><span class="c">lib\BoardConfig\BoardConfig.h   BOARD_ESP32S31 block: BOARD_NAME + pins
+          <p>Three files. The pin map is the part that matters; everything else compiles already.</p>
+<pre><span class="c">lib\BoardConfig\BoardConfig.h   BOARD_ESP32S31: BOARD_NAME, I2C, strapping
+src\Pins.h                      BOARD_ESP32S31: the peripheral pin map
 platformio.ini                  [env:esp32s31], board =, -D BOARD_ESP32S31</span></pre>
           <div class="gate"><span class="gate__k">Gate</span>
             <span>Every pin metered against the actual wiring: reader clock and data, relay,
-            exit button, OLED SDA/SCL, status LEDs. Do not trust a map copied from a
-            neighbouring part.</span></div>
+            exit button, door contact, OLED SDA/SCL, status LEDs. Do not trust a map copied
+            from a neighbouring part.</span></div>
         </div>
       </li>
 
@@ -394,12 +395,12 @@ curl http://&lt;device-ip&gt;/status.txt</pre>
 <pre>cd cloud\api
 $env:STORAGE_ACCOUNT_NAME = "jtcprodrfidaccessst"
 
-npm run publish-fw -- --board "ESP32-S31" --version 2.6.0 `
+npm run publish-fw -- --board "ESP32-S31" --version 2.8.2 `
    --file ..\..\.pio\build\esp32s31\firmware.bin
 
 npm run publish-fw -- --list</pre>
             <div class="gate"><span class="gate__k">Gate</span>
-              <span>The tool prints <code>image self-reports 2.6.0 &mdash; matches</code>, and
+              <span>The tool prints <code>image self-reports 2.8.2 &mdash; matches</code>, and
               <code>--list</code> shows the board string spelled exactly as the device
               reports it on <code>/status</code>.</span></div>
           </div>
@@ -414,7 +415,7 @@ npm run publish-fw -- --list</pre>
               and what updates the second one.</p>
 <pre>npm run fleet</pre>
             <div class="gate"><span class="gate__k">Gate</span>
-              <span>The door reports <code>2.6.0</code>, is checking in, shows
+              <span>The door reports <code>2.8.2</code>, is checking in, shows
               <code>up to date</code>. Set <code>fwHold</code> on any door you cannot easily
               reach until the first has proven the image in service.</span></div>
           </div>

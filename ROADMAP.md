@@ -569,11 +569,30 @@ are invisible: a release nobody walks through, a door propped open after a
 legitimate release, and a door forced with no release at all. The exit button
 makes this sharper, because it releases the door with no record of who.
 
-**Status (2026-09-17):** firmware **2.8.0** is on Test Door 1 (Front Door held at
-2.7.3). Backend and web are deployed. **No contact is fitted yet, so detection is
-unverified on hardware.** The rules pass 12 scenarios in a line-for-line
-JavaScript copy, but the C++ has only been compiled, not run. Next: bench test
-with a jumper from GPIO 33 to GND standing in for a closed door.
+**Status (2026-09-21):** ✅ **bench-proven on Test Door 1 (2026-09-19, fw
+2.8.1)**, with a jumper from GPIO 33 to GND standing in for a closed door. Front
+Door is held at 2.8.0 and has no contact.
+
+What the stored events show, contact enabled with a 30 s held-open limit:
+
+| Time (UTC) | Recorded |
+|---|---|
+| 14:09:14 | config, `contact=1,30s` |
+| 14:09:52 | type 8, reason *no release* — **door forced** |
+| 14:10:22 | type 9, reason *held open* — exactly 30 s later |
+| 14:11:05 | type 9, reason *closed*, detail `72s` |
+
+Held-open fired at exactly the configured limit, timed from the opening — right
+for a forced door, which has no release to time from. The close reported 72 s
+against 73 s of wall clock, so the debounced measurement holds. Nothing landed in
+the person tables: the `unknown-202609` partition has no type 8 or 9 rows, which
+was the failure that would have polluted the unknown-card enrolment feed.
+
+**Still unproven:** a *legitimate* opening producing no forced event (the case
+that matters most — if it false-fires, every normal entry becomes an alarm), and
+the grace boundary (badge, wait out the relay hold plus 2 s, then open, which
+should report forced). Neither is distinguishable from the events recorded so
+far. And it has still never run with a real reed switch fitted to a real door.
 
 ### Hardware
 
@@ -601,10 +620,17 @@ with an internal pull-up — the same wiring pattern as the exit button.
 
 ### Firmware
 
-- **Off until enabled on `/setup`.** With nothing wired, a pulled-up input reads
-  "open", which would raise a forced alert at once. Enabling is an install-time
-  fact about the hardware, so it stays local to the door rather than coming from
-  the cloud.
+- **Off until switched on.** With nothing wired, a pulled-up input reads "open",
+  which would raise a forced alert at once. Originally local-only, on the
+  argument that a fitted contact is an install-time hardware fact; since 2.8.2 it
+  is also part of the cloud door config, because for a paired door `/setup` is
+  the one place the admin app tells you not to make changes. A board with no
+  free input reports `hasDoorContact: false` and ignores it.
+
+  While paired, `/setup` shows it read-only and refuses a write, the same rule
+  as the reader format: both places writing it meant the cloud silently won at
+  the next sync, so a change made at the door looked applied and then undid
+  itself minutes later with nothing said.
 - Uses the two `EventLog::Type` values reserved for this, `EVT_DOOR_FORCED` (8)
   and `EVT_DOOR_HELD` (9). The enum is append-only, so the 40-byte record format
   does not change and older spool files stay readable.

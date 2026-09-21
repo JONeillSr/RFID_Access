@@ -24,10 +24,11 @@ firmware updates.
   de-energised (locked) whenever the controller is off or unpowered.
 - **Exit button** — request-to-exit input (push-to-make to GND) releases the
   door from the secure side, no fob needed.
-- **Door contact** *(new in 2.8.0; not yet tested with a contact fitted)* — an optional
-  magnetic contact on the frame reports a door **forced** open (opened with no
-  grant, exit press or unlock window) or **held open** too long. Off until
-  enabled on `/setup`. DevKit and S3 only; the C6 and C3 have no free input.
+- **Door contact** — an optional magnetic contact on the frame reports a door
+  **forced** open (opened with no grant, exit press or unlock window) or **held
+  open** too long. Off until switched on, from the admin app or `/setup`. DevKit
+  and S3 only; the C6 and C3 have no free input. *Bench-proven 2026-09-19 with a
+  jumper standing in for the contact; not yet run with a reed switch fitted.*
 - **Unlock schedule** — optionally holds the door unlocked during a configured
   time window on selected days (e.g. 08:00–17:00 weekdays), set from the web
   UI and stored in NVS. Time comes from NTP and the schedule **fails secure**:
@@ -200,9 +201,11 @@ Exit/0V terminal pair.
 
 **Door contact** *(new in 2.8.0)*: a magnetic reed contact on the frame,
 wired between `PIN_DOOR_CONTACT` and GND (internal pull-up) — GPIO 33 on the
-DevKit, 17 on the S3. The C6 and C3 have no free input. Then set **Door contact →
-Fitted** on `/setup`. It is off by default because an unwired input reads as an
-open door.
+DevKit, 17 on the S3. The C6 and C3 have no free input. Then switch it on: for a
+paired door, in the admin app under **Doors → edit → Door contact fitted**
+(`/setup` shows it read-only there, as it does the reader format); otherwise on
+the door's own `/setup`. It is off by default because an unwired
+input reads as an open door.
 
 - Use a contact that is **closed when the door is shut**. A cut wire then reads
   as open and raises an alert, instead of reading "closed" forever. (For the
@@ -360,11 +363,11 @@ app-specific status fields.
 |------|---------|
 | `/` | main web UI (card enrolment) |
 | `/config` | fob management + unlock-schedule configuration |
-| `/setup` | device settings: splash hold, mDNS hostname, door name, site name, door contact and held-open limit, **backend host**, cloud pairing code; plus a **Reboot device** button |
+| `/setup` | device settings: splash hold, mDNS hostname, door name, site name, **WiFi network** (try-then-revert), **reader format**, door contact and held-open limit, **backend host**, cloud pairing code; plus a **Reboot device** button |
 | `/api/schedule` | GET current schedule/state, POST to update |
 | `/api/add` `/api/rename` `/api/remove` | fob management (POST, JSON) |
 | `/api/list` `/api/taps` | roster and recent taps (GET, JSON) |
-| `/status` | live status page: device ID, door and site, WiFi IP, mDNS name, uptime, **heap** (free / min since boot / largest block), OLED, reader counters, time **and how long since NTP**, schedule, enrolled count, **`Backend:`** host, cloud sync state, **`Retry:`** backoff when not on the normal poll, event spool, last tap |
+| `/status` | live status page: device ID, door and site, WiFi IP, mDNS name, uptime, **heap** (free / min since boot / largest block), OLED, **`Reader:`** running line format (and any pending change), time **and how long since NTP**, schedule, **`Contact:`** door state, **`WiFi:`** network and any move in progress, enrolled count, **`Backend:`** host, cloud sync state, **`Retry:`** backoff when not on the normal poll, event spool, last tap |
 
 The heap line is worth reading properly, because two of its three numbers have
 already been the difference between a diagnosis and a guess:
@@ -470,7 +473,11 @@ lib/                    reusable, application-agnostic libraries
   Roster/               LittleFS credential store: hash-keyed, CRC-checked,
                         atomic save, atomic wholesale replace for cloud sync
   EventLog/             durable append-only event spool held until the backend
-                        acknowledges it (taps, exit, schedule, boot, firmware)
+                        acknowledges it (taps, exit, schedule, boot, config,
+                        firmware, door forced/held)
+  DoorContact/          forced-open and held-open decisions from a reed contact.
+                        Pure logic: the caller reads the pin and supplies the
+                        release state, so the rules sit in one readable place
   CloudSync/            backend sync client + OTA: uploads spooled events,
                         applies the roster/config the server returns, and takes
                         firmware updates. Runs on its own task and is NEVER in
