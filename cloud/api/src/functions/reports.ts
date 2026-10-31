@@ -242,6 +242,17 @@ app.http('reportUnknown', {
 
     const rows = await scan('EventsByPerson', (m) => `unknown-${m}`, range, MAX_ROWS);
 
+    // The taps are history and stay filed as unknown -- the card was not
+    // enrolled when it tapped. But this list is "cards to enrol", so a card that
+    // has been enrolled since is no longer on it. Same test the enrol dialog uses
+    // for "already enrolled": a credential with that number exists at all.
+    const enrolled = new Set<string>();
+    for await (const c of t('Credentials').listEntities<any>({
+      queryOptions: { select: ['number'] },
+    })) {
+      if (c.number) enrolled.add(String(c.number));
+    }
+
     // Collapse to distinct cards: the same unrecognised fob tapped eleven times
     // is one thing to enrol, not eleven. Keep the most recent sighting and where.
     const seen = new Map<string, ReturnType<typeof timeOf> & {
@@ -257,6 +268,7 @@ app.http('reportUnknown', {
       // type itself rather than trusting the partition it was found in.
       if (r.type !== EventType.Tap) continue;
       if (!/^[0-9]+$/.test(r.cred)) continue;
+      if (enrolled.has(r.cred)) continue;
       const e = seen.get(r.cred);
       if (e) { e.taps++; }
       else seen.set(r.cred, { ...timeOf(r), cred: r.cred, lastSeen: r.at, door: r.doorName, taps: 1 });
