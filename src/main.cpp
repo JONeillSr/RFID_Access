@@ -185,10 +185,17 @@ static bool              gOledOk = false;
 static volatile unsigned long relayOffAt = 0;
 
 // Timings in force right now: the defaults above until NVS or the admin app
-// says otherwise. Written by the sync task, read by accessTask and loop() --
-// aligned 32-bit scalars, so a reader either sees the old value or the new one.
+// says otherwise. Written by the sync task (or /setup on an unpaired door), read
+// by accessTask and loop() -- aligned 32-bit scalars, so a reader either sees the
+// old value or the new one.
 static volatile uint32_t gRelayHoldMs  = RELAY_HOLD_MS;
 static volatile uint32_t gResultHoldMs = RESULT_HOLD_MS;
+
+// Clamped rather than trusted, wherever a value comes from: a zero would make
+// every grant a relay glitch nobody could walk through, and an hour would leave
+// the door open. The bounds are what a strike can survive.
+static uint32_t clampRelayHold(uint32_t v)  { return v < 250 ? 250 : (v > 30000 ? 30000 : v); }
+static uint32_t clampResultHold(uint32_t v) { return v < 500 ? 500 : (v > 30000 ? 30000 : v); }
 
 // A reader format arrived that differs from the one attached at boot. The format
 // decides which ISRs are attached, so it cannot be applied to a running reader;
@@ -825,6 +832,30 @@ void setup() {
                         "directly.</div>";
             }
 
+            // ---- Relay timing ----
+            {
+                // Same rule as the reader format: the admin app owns it while
+                // paired, and would overwrite a local change at the next sync.
+                bool managedRelay = cloudSync.paired();
+                const char* dis = managedRelay ? " disabled" : "";
+                html += "<h2>Relay</h2>";
+                html += "<label>Relay hold (ms)</label>";
+                html += "<input type='number' name='relayHoldMs' min='250' max='30000' step='250' value='" +
+                        String(gRelayHoldMs) + "'" + dis + ">";
+                html += "<div class='hint'>";
+                if (managedRelay) {
+                    html += "Set in the admin app, which is the only writer while this "
+                            "door is paired. Unpair below to set it here again.<br>";
+                }
+                html += "How long the strike stays released after a grant, exit press or "
+                        "remote release. 250&ndash;30000; takes effect at the next release.</div>";
+                html += "<label>Result screen (ms)</label>";
+                html += "<input type='number' name='resultHoldMs' min='500' max='30000' step='250' value='" +
+                        String(gResultHoldMs) + "'" + dis + ">";
+                html += "<div class='hint'>How long GRANTED / DENIED stays on the display. "
+                        "500&ndash;30000.</div>";
+            }
+
             // ---- Door contact ----
             html += "<h2>Door contact</h2>";
 #if PIN_DOOR_CONTACT >= 0
@@ -947,6 +978,29 @@ void setup() {
                                    PaxtonReader::modeName((PaxtonReader::Mode)now) +
                                    " - reboot to apply");
                     gReaderRebootPending = (now != (uint32_t)paxton.mode());
+                }
+            }
+
+            // Relay timing. Logged for the same reason as the reader format: a
+            // hold long enough to walk a second person through is a change to
+            // the door's security, made on a page with no login.
+            if (s.hasArg("relayHoldMs") && !cloudSync.paired()) {
+                uint32_t v = clampRelayHold((uint32_t)max(0L, s.arg("relayHoldMs").toInt()));
+                if (v != gRelayHoldMs) {
+                    gRelayHoldMs = v;
+                    settings.setUInt(KEY_RELAY_HOLD_MS, v);
+                    char detail[24];
+                    snprintf(detail, sizeof(detail), "relay=%lums", (unsigned long)v);
+                    eventLog.append(EventLog::EVT_CONFIG, EventLog::R_NONE, false, detail);
+                    webService.log("[setup] relay hold set to " + String(v) + "ms");
+                }
+            }
+            if (s.hasArg("resultHoldMs") && !cloudSync.paired()) {
+                uint32_t v = clampResultHold((uint32_t)max(0L, s.arg("resultHoldMs").toInt()));
+                if (v != gResultHoldMs) {
+                    gResultHoldMs = v;
+                    settings.setUInt(KEY_RESULT_HOLD_MS, v);
+                    webService.log("[setup] result screen hold set to " + String(v) + "ms");
                 }
             }
 
@@ -1273,12 +1327,7 @@ void setup() {
             bool changed = false;
 
             if (c.hasRelayHoldMs) {
-                // Clamped rather than trusted: a zero would make every grant a
-                // relay glitch nobody could walk through, and an hour would leave
-                // the door open. The bounds are what a strike can survive.
-                uint32_t v = c.relayHoldMs;
-                if (v < 250)   v = 250;
-                if (v > 30000) v = 30000;
+                uint32_t v = clampRelayHold(c.relayHoldMs);
                 if (v != gRelayHoldMs) {
                     gRelayHoldMs = v;
                     settings.setUInt(KEY_RELAY_HOLD_MS, v);
@@ -1287,9 +1336,7 @@ void setup() {
                 }
             }
             if (c.hasResultHoldMs) {
-                uint32_t v = c.resultHoldMs;
-                if (v < 500)   v = 500;
-                if (v > 30000) v = 30000;
+                uint32_t v = clampResultHold(c.resultHoldMs);
                 if (v != gResultHoldMs) {
                     gResultHoldMs = v;
                     settings.setUInt(KEY_RESULT_HOLD_MS, v);

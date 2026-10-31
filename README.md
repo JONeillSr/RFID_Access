@@ -372,7 +372,7 @@ app-specific status fields.
 |------|---------|
 | `/` | main web UI (card enrolment) |
 | `/config` | fob management + unlock-schedule configuration |
-| `/setup` | device settings: splash hold, mDNS hostname, door name, site name, **WiFi network** (try-then-revert), **reader format**, door contact and held-open limit, **backend host**, cloud pairing code; plus a **Reboot device** button |
+| `/setup` | device settings: splash hold, mDNS hostname, door name, site name, **WiFi network** (try-then-revert), **reader format**, **relay hold and result-screen hold**, door contact and held-open limit, **backend host**, cloud pairing code; plus a **Reboot device** button |
 | `/api/schedule` | GET current schedule/state, POST to update |
 | `/api/add` `/api/rename` `/api/remove` | fob management (POST, JSON) |
 | `/api/list` `/api/taps` | roster and recent taps (GET, JSON) |
