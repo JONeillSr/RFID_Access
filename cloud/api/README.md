@@ -109,6 +109,18 @@ own armed flag once a boot honours it, so a level comparison would re-arm on the
 next sync and the open network would come back after every reboot. Leaving it
 true does nothing further; set it false and true again to ask a second time.
 
+**Restart** (`POST /v1/admin/doors/restart`, Admin) stamps the door row with a
+fresh request id. Sync hands it down as `restart: { id }` while it is less than
+15 minutes old (`RESTART_REQUEST_TTL_MS`); a door that was offline when someone
+pressed the button does not restart whenever it next reconnects. The door waits
+for any release to finish, stores the id in NVS, logs a `restart=remote` config
+event and restarts. It reports that id as `restartId` on every sync, and the
+backend clears the request when it matches -- so a re-sent response cannot
+restart a door twice. An unlock schedule does not hold a restart off the way it
+holds off an OTA: the clock survives a warm restart, so the window resumes
+within seconds. Pair it with `openSetupPortal` or a reader-format change to apply
+them without a site visit.
+
 **There is deliberately no remote "reset WiFi".** It is the one command that
 cannot be confirmed, undone or retried: it arrives over the network it destroys,
 and the door comes back reachable only by someone standing next to it. Moving a

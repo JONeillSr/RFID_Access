@@ -3,6 +3,18 @@ import { api, atLeast } from '../auth';
 import { Table, Pill } from '../components/Table';
 import { Modal, Field, Text, Check, GroupPicker, Actions, useRecord } from '../components/Form';
 
+/**
+ * How long a restart request stays deliverable. Mirrors RESTART_REQUEST_TTL_MS
+ * in cloud/shared/types.ts, which the web app does not import -- change both.
+ */
+const RESTART_TTL_MS = 15 * 60 * 1000;
+
+/** 'pending' while the door may still collect it, 'lapsed' after, else null. */
+function restartState(d) {
+  if (!d.restartReqAt) return null;
+  return Date.now() - Date.parse(d.restartReqAt) < RESTART_TTL_MS ? 'pending' : 'lapsed';
+}
+
 export function Doors({ notify, flash }) {
   const [doors, setDoors] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -20,6 +32,15 @@ export function Doors({ notify, flash }) {
     } catch (e) { notify(e); }
   };
   useEffect(() => { load(); }, []);
+
+  // While a restart is outstanding, refresh so the pill clears by itself when
+  // the door confirms it -- otherwise "pending" sits there until someone reloads.
+  const anyPending = doors.some((d) => restartState(d) === 'pending');
+  useEffect(() => {
+    if (!anyPending) return;
+    const id = setInterval(load, 15000);
+    return () => clearInterval(id);
+  }, [anyPending]);
 
   const pair = async () => {
     if (!name.trim()) return notify(new Error('Enter a door name first'));
@@ -40,6 +61,33 @@ export function Doors({ notify, flash }) {
       setEditing(null);
       flash(`Saved ${rec.name} — the door applies this on its next sync (roster rev ${r?.rosterRev ?? '?'}).`);
     } catch (e) { notify(e); } finally { setBusy(false); }
+  };
+
+  const restart = async (d) => {
+    const silent = d.silentMinutes !== null && d.silentMinutes > 10;
+    const msg =
+      `Restart ${d.name}?
+
+` +
+      'It restarts when it next checks in, usually within a minute, and waits ' +
+      'for any release in progress to finish. Fobs will not open it until it ' +
+      'is back up a few seconds later; an unlock schedule resumes on its own.' +
+      (silent
+        ? `
+
+This door last checked in ${d.silentMinutes} minutes ago. If it ` +
+          'does not reconnect within 15 minutes the request lapses rather than ' +
+          'restarting it whenever it next comes back.'
+        : '');
+    if (!confirm(msg)) return;
+    try {
+      await api('/v1/admin/doors/restart', {
+        method: 'POST',
+        body: JSON.stringify({ deviceId: d.deviceId }),
+      });
+      await load();
+      flash(`Restart requested for ${d.name} — it restarts on its next sync.`);
+    } catch (e) { notify(e); }
   };
 
   /** "Why can't X get in?" answered from the door's side. */
@@ -71,9 +119,22 @@ export function Doors({ notify, flash }) {
           <>
             {!d.paired && <Pill kind="warn">unpaired</Pill>}
             {d.fwHold && <Pill>held</Pill>}
+            {restartState(d) === 'pending' && (
+              <span title={`Requested by ${d.restartReqBy || 'an admin'} at ${new Date(d.restartReqAt).toLocaleString()}`}>
+                <Pill kind="warn">restart pending</Pill>
+              </span>
+            )}
+            {restartState(d) === 'lapsed' && (
+              <span title="The door did not check in within 15 minutes of the request, so it was not restarted.">
+                <Pill kind="warn">restart lapsed</Pill>
+              </span>
+            )}
             <div class="rowacts">
               <button class="small" onClick={() => showRoster(d)}>Who gets in?</button>
               {canEdit && <button class="small" onClick={() => setEditing({ ...d })}>Edit</button>}
+              {canEdit && d.paired && restartState(d) !== 'pending' && (
+                <button class="small" onClick={() => restart(d)}>Restart</button>
+              )}
             </div>
           </>,
         ])}
@@ -231,7 +292,8 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
         <div class="consequence warn">
           This door is still reading <strong>{readerName(running)}</strong>. The
           change applies at its next restart; until then nothing changes at the
-          door.
+          door. Save, then use <strong>Restart</strong> in the doors list to
+          apply it now.
         </div>
       )}
 
@@ -278,7 +340,8 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
 
       {rec.openSetupPortal && !cfg.openSetupPortal && (
         <div class="consequence warn">
-          Nothing happens until the door restarts, and then someone has to be
+          Nothing happens until the door restarts (save, then use{' '}
+          <strong>Restart</strong> in the doors list), and then someone has to be
           within WiFi range of it. The setup network is <strong>open</strong> —
           anyone in range can reach the door while it is up — so it closes itself
           after 30 minutes. To move a door to a network you can already reach,

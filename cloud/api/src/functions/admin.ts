@@ -19,6 +19,7 @@
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import { TableClient } from '@azure/data-tables';
 import { DefaultAzureCredential } from '@azure/identity';
+import { randomBytes } from 'node:crypto';
 import { requireRole, isDenied, actor } from '../adminAuth';
 import { bumpRosterRev, getDoor, effectiveRoster } from '../storage';
 import { issueEnrollCode } from '../auth';
@@ -422,6 +423,11 @@ app.http('adminDoors', {
           // change as pending until the door restarts.
           readerMode: d.readerMode ?? '',
           hasDoorContact: d.hasDoorContact === true,
+          // An outstanding restart, and the last one the door confirmed. The
+          // UI tells pending from lapsed using RESTART_REQUEST_TTL_MS.
+          restartReqAt: d.restartReqId ? (d.restartReqAt ?? null) : null,
+          restartReqBy: d.restartReqId ? (d.restartReqBy ?? '') : '',
+          restartDoneAt: d.restartDoneAt ?? null,
         });
       }
       doors.sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -460,6 +466,49 @@ app.http('adminDoors', {
     ctx.log(`admin: ${actor(auth.principal)} updated door ${deviceId} ` +
             `(${Object.keys(patch).filter((k) => k !== 'partitionKey' && k !== 'rowKey').join(', ')}), rev -> ${rev}`);
     return ok({ deviceId, rosterRev: rev });
+  },
+});
+
+/**
+ * Ask a door to restart.
+ *
+ * Delivered on the door's next sync (every 30 s or so), and acted on once the
+ * relay is idle -- never mid-release. A fresh id per request is what makes it
+ * one-shot: the door remembers the last id it honoured, so a response re-sent
+ * before this backend hears back cannot restart it twice. A request the door
+ * does not collect within RESTART_REQUEST_TTL_MS lapses rather than firing
+ * whenever it next reconnects.
+ *
+ * Admin, like the rest of door editing: a restart drops any scheduled-unlock
+ * window for a few seconds and takes the door off the network while it boots.
+ */
+app.http('adminDoorRestart', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  route: 'v1/admin/doors/restart',
+  handler: async (req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> => {
+    const auth = await requireRole(req, 'Admin');
+    if (isDenied(auth)) return auth.denied;
+
+    const body = (await req.json().catch(() => ({}))) as any;
+    const deviceId = String(body.deviceId ?? '').trim();
+    if (!deviceId) return bad('deviceId is required');
+
+    const door = await t('Doors').getEntity<any>('door', deviceId).catch(() => undefined);
+    if (!door) return { status: 404, jsonBody: { error: 'no such door' } };
+    if (!door.keyHash) return bad('this door is not paired, so it cannot hear a restart request');
+
+    const id = `${Date.now().toString(36)}${randomBytes(3).toString('hex')}`;
+    const at = new Date().toISOString();
+    // Merge: touches only the request fields. No rosterRev bump -- nothing the
+    // door's roster or config depends on has changed.
+    await t('Doors').upsertEntity(
+      { partitionKey: 'door', rowKey: deviceId,
+        restartReqId: id, restartReqAt: at, restartReqBy: actor(auth.principal) },
+      'Merge'
+    );
+    ctx.log(`admin: ${actor(auth.principal)} requested restart of door ${deviceId} (request ${id})`);
+    return ok({ deviceId, restartReqAt: at });
   },
 });
 

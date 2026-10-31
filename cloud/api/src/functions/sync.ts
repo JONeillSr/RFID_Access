@@ -14,6 +14,7 @@
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import type { SyncRequest, SyncResponse } from '../../../shared/types';
+import { RESTART_REQUEST_TTL_MS } from '../../../shared/types';
 import { authenticateDevice } from '../auth';
 import {
   effectiveRoster,
@@ -112,6 +113,21 @@ export async function sync(
   const doorRow = await getDoor(door.deviceId);
   if (doorRow?.config) response.config = doorRow.config;
 
+  // ---- remote restart ----------------------------------------------------
+  // The door says which restart it last honoured. A match means the one asked
+  // for has happened, so the request is cleared rather than offered again.
+  const reportedRestart = typeof body.restartId === 'string' ? body.restartId : '';
+  const restartDone = !!doorRow?.restartReqId && reportedRestart === doorRow.restartReqId;
+  if (doorRow?.restartReqId && !restartDone) {
+    // Only while fresh. A door that was offline when someone pressed Restart
+    // must not reboot whenever it next reconnects, with nobody watching.
+    const age = Date.now() - Date.parse(doorRow.restartReqAt ?? '');
+    if (age >= 0 && age < RESTART_REQUEST_TTL_MS) {
+      response.restart = { id: doorRow.restartReqId };
+      ctx.log(`sync ${door.deviceId} asked to restart (request ${doorRow.restartReqId})`);
+    }
+  }
+
   // ---- firmware offer ----------------------------------------------------
   // Looked up BY THE DEVICE'S OWN BOARD. If nothing is published for that board,
   // nothing is offered — never a fallback to another variant's image, because a
@@ -154,6 +170,7 @@ export async function sync(
     // Only once the boot's start is actually known: storing 0 would pin a boot
     // to "no clock" for its whole life even after NTP arrives.
     ...(bootEpoch > 0 ? { bootId: reportedBootId, bootEpoch } : {}),
+    ...(restartDone ? { restartReqId: '', restartDoneAt: new Date().toISOString() } : {}),
   });
 
   ctx.log(

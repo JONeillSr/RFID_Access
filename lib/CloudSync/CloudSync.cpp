@@ -49,6 +49,7 @@ void CloudSync::begin(DeviceSettings* settings, DeviceIdentity* identity,
     // quietly syncs to somebody else's backend.
     _host      = _settings ? _settings->getString(KEY_CLOUD_HOST, defaultHost) : String(defaultHost);
     _deviceKey = _settings ? _settings->getString(KEY_DEVICE_KEY, "") : String();
+    _restartId = _settings ? _settings->getString(KEY_RESTART_ID, "") : String();
     _status.paired = _deviceKey.length() > 0;
     unlock();
 
@@ -254,6 +255,11 @@ bool CloudSync::syncOnce(String& err) {
     // has merely stored from one the door has applied.
     if (_readerMode.length()) req["readerMode"] = _readerMode;
     if (_hasContactKnown) req["hasDoorContact"] = _hasDoorContact;
+    // Every sync, not just the first after a restart: if that one fails, the
+    // backend would otherwise keep offering a restart that already happened.
+    lock();
+    if (_restartId.length()) req["restartId"] = _restartId;
+    unlock();
 
     JsonArray evs = req["events"].to<JsonArray>();
     for (size_t i = 0; i < n; i++) {
@@ -438,6 +444,22 @@ bool CloudSync::syncOnce(String& err) {
             }
         }
         _onConfig(cfg);
+    }
+
+    // ---- remote restart ----------------------------------------------------
+    // Only noted here; the task loop acts on it once this frame -- and its TLS
+    // client -- is gone, and only when the app says the door is safe to restart.
+    if (resp["restart"].is<JsonObject>()) {
+        String id = resp["restart"]["id"] | "";
+        lock();
+        bool fresh = id.length() && id != _restartId;
+        if (fresh && id != _pendingRestartId) {
+            _pendingRestartId = id;
+            unlock();
+            say("[cloud] restart requested from the admin app (" + id + ")");
+        } else {
+            unlock();
+        }
     }
 
     // ---- firmware offer ----------------------------------------------------
@@ -652,6 +674,18 @@ bool CloudSync::applyFirmware(const String& url, const String& version,
     return true;    // not reached
 }
 
+String CloudSync::consumeRestart() {
+    lock();
+    String id = _pendingRestartId;
+    _pendingRestartId = "";
+    if (id.length()) _restartId = id;
+    unlock();
+    // NVS outside the lock: a flash write can stall long enough to hold up a
+    // web request reading status().
+    if (id.length() && _settings) _settings->setString(KEY_RESTART_ID, id);
+    return id;
+}
+
 // -----------------------------------------------------------------------------
 //  Task
 // -----------------------------------------------------------------------------
@@ -720,7 +754,12 @@ void CloudSync::task(void* pv) {
         // therefore never applied, and it could not recover without a reboot or a
         // cable. A door that cannot sync properly is the one that most needs the
         // new image, not the one to withhold it from.
+        String restartOwed;
         if (fwVersion.length()) {
+            // A successful update reboots, which is the restart someone asked
+            // for. Mark it honoured first, or the door would come back up, see
+            // the same request and restart a second time.
+            restartOwed = self->consumeRestart();
             self->say("[ota] downloading " + fwVersion + " from " + fwUrl);
             self->lock(); self->_status.fwNote = "downloading " + fwVersion; self->unlock();
 
@@ -736,6 +775,30 @@ void CloudSync::task(void* pv) {
                 self->lock(); self->_status.fwNote = m; self->unlock();
             }
             // On success applyFirmware() never returns -- it reboots.
+        }
+
+        // A remote restart. Acted on only when the app says the door is safe;
+        // otherwise it stays pending and the next sync, ~30 s on, tries again.
+        // restartOwed is a request an update was going to satisfy, then did not:
+        // it is already marked honoured, so it restarts now or never -- and an
+        // update only starts when the door is idle, so now is safe.
+        self->lock();
+        bool pending = self->_pendingRestartId.length() > 0;
+        self->unlock();
+        if (pending && !self->_safeToRestart) {
+            self->say("[cloud] restart ignored - no safety check wired");
+            self->lock(); self->_pendingRestartId = ""; self->unlock();
+        } else if (pending && !self->_safeToRestart()) {
+            self->say("[cloud] restart deferred - door releasing");
+        } else if (pending || restartOwed.length()) {
+            String id = restartOwed.length() ? restartOwed : self->consumeRestart();
+            // Logged before the restart: the spool is in flash, so the event
+            // goes up on the first sync after the boot, and the reboot in the
+            // door's history is attributable to a request.
+            eventLog.append(EventLog::EVT_CONFIG, EventLog::R_NONE, false, "restart=remote");
+            self->say("[cloud] restarting now (" + id + ")");
+            delay(250);
+            ESP.restart();
         }
 
         // Exponential backoff, capped. A door that has been offline for hours

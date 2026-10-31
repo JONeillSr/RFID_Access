@@ -1215,6 +1215,13 @@ void setup() {
         cloudSync.setSafeToUpdate([]() {
             return relayOffAt == 0 && !gSchedActive;
         });
+        // A restart from the admin app is a person asking now, so it waits only
+        // for a release to finish -- at most the relay hold. An unlock window
+        // does not hold it off: the clock survives a warm restart, so the window
+        // is back within seconds of boot, where an OTA would wait out the hours.
+        cloudSync.setSafeToRestart([]() {
+            return relayOffAt == 0;
+        });
 
         // Give CloudSync a voice. Without this its decisions -- refused image,
         // deferred update, download failure -- happen silently, and "the door

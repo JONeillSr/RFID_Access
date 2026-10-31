@@ -130,6 +130,15 @@ public:
     using SafeToUpdateFn = std::function<bool()>;
     void setSafeToUpdate(SafeToUpdateFn fn) { _safeToUpdate = fn; }
 
+    /// Same idea for a restart requested from the admin app. Separate from
+    /// SafeToUpdateFn because the trade-off differs: an OTA is the backend's
+    /// timing and can wait hours for a quiet moment, but a restart is a person
+    /// asking now, so the app may allow one in situations it would not allow an
+    /// update -- typically everything except a live release.
+    ///
+    /// If never set, remote restarts are ignored.
+    void setSafeToRestart(SafeToUpdateFn fn) { _safeToRestart = fn; }
+
     /// Per-door configuration, authored in the admin app and pushed down on
     /// every sync. Each field says whether this response carried it: the backend
     /// may omit any of them, and a missing field must never reset a door to a
@@ -198,6 +207,7 @@ private:
     // NVS keys. Preferences limits key names to 15 characters.
     static constexpr const char* KEY_DEVICE_KEY = "cloudKey";
     static constexpr const char* KEY_CLOUD_HOST = "cloudHost";
+    static constexpr const char* KEY_RESTART_ID = "restartId";
 
     mutable SemaphoreHandle_t _mutex = nullptr;
     void lock()   const { if (_mutex) xSemaphoreTake(_mutex, portMAX_DELAY); }
@@ -212,6 +222,7 @@ private:
     uint32_t _currentWaitMs   = 0;
 
     SafeToUpdateFn _safeToUpdate = nullptr;
+    SafeToUpdateFn _safeToRestart = nullptr;
     ConfigFn       _onConfig      = nullptr;
     String         _readerMode;              // empty = not reported
     bool           _hasDoorContact  = false;
@@ -222,6 +233,18 @@ private:
     // syncOnce() has returned and released its TLS client -- two mbedTLS
     // contexts do not fit in heap at once. Guarded by _mutex.
     String _pendingFwVersion, _pendingFwUrl, _pendingFwSha;
+
+    // Remote restart. _restartId is the last request this door honoured, kept in
+    // NVS and reported on every sync so the backend can clear it; a request
+    // carrying that same id is ignored, which is what makes it one-shot.
+    // _pendingRestartId is a new one seen by syncOnce() and acted on by the task
+    // loop, for the same TLS-teardown reason as the firmware offer. Both guarded
+    // by _mutex.
+    String _restartId, _pendingRestartId;
+
+    /// Record the pending restart as honoured, so it is not acted on again after
+    /// the reboot. Returns the id, or empty if none was pending.
+    String consumeRestart();
     LogFn          _log = nullptr;
     void say(const String& m) const { if (_log) _log(m); }
 

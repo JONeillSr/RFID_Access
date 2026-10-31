@@ -155,7 +155,25 @@ export interface Door {
    */
   bootId?: number;
   bootEpoch?: number;
+  /**
+   * An outstanding remote restart: the request id, when it was made (ISO) and
+   * by whom. Cleared once the door reports that id back as honoured.
+   */
+  restartReqId?: string;
+  restartReqAt?: string;
+  restartReqBy?: string;
+  /** When the door last confirmed a remote restart (ISO). */
+  restartDoneAt?: string;
 }
+
+/**
+ * How long a remote restart request stays deliverable.
+ *
+ * A door that is offline when someone presses Restart must not reboot days later
+ * when it reconnects, long after anyone was watching. Past this the request
+ * lapses and the admin app says so.
+ */
+export const RESTART_REQUEST_TTL_MS = 15 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Events — values MUST match lib/EventLog/EventLog.h
@@ -275,6 +293,12 @@ export interface SyncRequest {
    * setting the door will ignore.
    */
   hasDoorContact?: boolean;
+  /**
+   * Id of the last remote restart this door honoured, from its NVS. The backend
+   * clears an outstanding request when this matches it. Absent on firmware
+   * before 2.9.0, and on a door that has never been restarted remotely.
+   */
+  restartId?: string;
   events: DeviceEvent[];
 }
 
@@ -305,6 +329,13 @@ export interface SyncResponse {
   config?: DoorConfig;
   /** Present only when an image matching this device's board is available. */
   firmware?: FirmwareOffer;
+  /**
+   * Restart once the relay is idle. Present only while a request is outstanding
+   * and inside RESTART_REQUEST_TTL_MS. The id, not the field's presence, is the
+   * command: a door that already honoured this id ignores it, so a response
+   * re-sent before the backend hears back cannot restart it twice.
+   */
+  restart?: { id: string };
   /** Server time, so a door with no NTP can still bound its clock. */
   serverEpoch: number;
 }

@@ -150,6 +150,8 @@ export async function getDoor(deviceId: string): Promise<Door | undefined> {
       firmware: e.firmware,
       rosterRev: e.rosterRev,
       fwHold: e.fwHold === true,
+      restartReqId: e.restartReqId || undefined,
+      restartReqAt: e.restartReqAt || undefined,
     };
   } catch {
     return undefined;
@@ -163,6 +165,8 @@ export async function touchDoor(
     board?: string; firmware?: string; rosterRev?: number;
     bootId?: number; bootEpoch?: number; readerMode?: string;
     hasDoorContact?: boolean;
+    /** '' clears an outstanding restart request once the door confirms it. */
+    restartReqId?: string; restartDoneAt?: string;
   }
 ): Promise<void> {
   await table('Doors').upsertEntity(
