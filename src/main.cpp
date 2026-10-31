@@ -1088,6 +1088,10 @@ void setup() {
             } else {
                 body += "Schedule: disabled\n";
             }
+            // The live values, not the NVS ones: these are what the next grant
+            // will actually use, whether they came from the default or the cloud.
+            body += "Relay:    " + String(gRelayHoldMs) + " ms hold per grant, result screen " +
+                    String(gResultHoldMs) + " ms\n";
 #if PIN_DOOR_CONTACT >= 0
             if (!gDoorContactOn) {
                 body += "Contact:  not fitted (enable on /setup)\n";
