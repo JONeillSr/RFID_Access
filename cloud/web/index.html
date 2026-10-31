@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>JT Custom Trailers — Access Control</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <!-- Installable: added to a home screen it opens in its own window, with no
+       browser chrome. No service worker: an admin app that is useless offline
+       gains nothing from one, and a cached bundle is how a fix fails to arrive. -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#161c24">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="JTC Access">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
 </head>
 <body>
   <div id="app"></div>

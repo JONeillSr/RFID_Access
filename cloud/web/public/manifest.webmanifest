@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "JT Custom Trailers Access Control",
+  "short_name": "JTC Access",
+  "description": "Doors, people and access reports for JT Custom Trailers.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f1419",
+  "theme_color": "#161c24",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
