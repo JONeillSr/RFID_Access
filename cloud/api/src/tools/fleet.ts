@@ -18,7 +18,7 @@
 
 import { TableClient } from '@azure/data-tables';
 import { DefaultAzureCredential } from '@azure/identity';
-import { listFirmware, boardKey } from '../storage';
+import { listFirmware, boardKey, wouldOffer, type FirmwareRecord } from '../storage';
 
 const account = process.env.STORAGE_ACCOUNT_NAME;
 if (!account) {
@@ -48,8 +48,8 @@ async function main() {
   const doors = new TableClient(endpoint, 'Doors', credential);
 
   // Published image per board, keyed the same way the sync endpoint keys it.
-  const published = new Map<string, string>();
-  for (const f of await listFirmware()) published.set(boardKey(f.board), f.version);
+  const records = new Map<string, FirmwareRecord>();
+  for (const f of await listFirmware()) records.set(boardKey(f.board), f);
 
   interface Row {
     name: string; deviceId: string; board: string;
@@ -60,7 +60,8 @@ async function main() {
 
   for await (const d of doors.listEntities<any>()) {
     const fw = String(d.firmware ?? '?');
-    const want = published.get(boardKey(String(d.board ?? ''))) ?? '-';
+    const rec = records.get(boardKey(String(d.board ?? '')));
+    const want = rec?.version ?? '-';
     const hold = d.fwHold === true;
     const seen = ago(d.lastSeen);
 
@@ -68,7 +69,8 @@ async function main() {
     if (want === '-') status = 'no image published';
     else if (fw === want) status = 'up to date';
     else if (hold) status = `HELD at ${fw}`;
-    else status = `BEHIND (wants ${want})`;
+    else if (rec && wouldOffer(rec, fw)) status = `BEHIND (wants ${want})`;
+    else status = `AHEAD of ${want} (not offered)`;
 
     rows.push({
       name: String(d.name ?? d.rowKey),
@@ -114,17 +116,19 @@ async function main() {
   console.log('');
   const behind = rows.filter((r) => r.status.startsWith('BEHIND')).length;
   const held = rows.filter((r) => r.hold).length;
+  const ahead = rows.filter((r) => r.status.startsWith('AHEAD')).length;
   const silent = rows.filter((r) => r.seenMins > SILENT_AFTER_MIN).length;
   console.log(
-    `  ${rows.length} door(s): ${rows.length - behind - held} up to date, ` +
-      `${behind} behind, ${held} held` + (silent ? `, ${silent} not checking in` : '')
+    `  ${rows.length} door(s): ${rows.length - behind - held - ahead} up to date, ` +
+      `${behind} behind, ${held} held` + (ahead ? `, ${ahead} ahead` : '') + (silent ? `, ${silent} not checking in` : '')
   );
 
   console.log('\n  Published images:');
   const all = await listFirmware();
   if (!all.length) console.log('    (none)');
   for (const f of all) {
-    console.log(`    ${f.board.padEnd(20)} ${f.version.padEnd(10)} ${f.publishedAt}`);
+    console.log(`    ${f.board.padEnd(20)} ${f.version.padEnd(10)} ${f.publishedAt}` +
+                (f.rollback ? '  (rollback: offered to newer doors too)' : ''));
   }
   console.log('');
 }

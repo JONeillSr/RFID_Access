@@ -202,6 +202,47 @@ export interface FirmwareRecord {
   sha256: string;
   sizeBytes: number;
   publishedAt: string;
+  /**
+   * Published deliberately as an older version than the one before it
+   * (publish-fw --rollback). Only then is a door running something NEWER
+   * offered this image; otherwise it is left where it is.
+   */
+  rollback?: boolean;
+}
+
+/**
+ * Compare dotted numeric versions ("2.10.0" > "2.9.3"). NaN when either side
+ * is not of that form -- callers decide what an unknown version means.
+ */
+export function compareVersions(a: string, b: string): number {
+  const pa = String(a).split('.').map(Number);
+  const pb = String(b).split('.').map(Number);
+  if ([...pa, ...pb].some((n) => !Number.isInteger(n) || n < 0)) return NaN;
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d) return Math.sign(d);
+  }
+  return 0;
+}
+
+/**
+ * Whether a door running `running` would be offered `rec`. The ONE rule: sync
+ * acts on it, and the reports and fleet tool describe it, so they cannot disagree.
+ *
+ * Only a newer image is offered. "Different" was the old rule, and it quietly
+ * downgraded any door flashed ahead of the fleet -- a build being proved on one
+ * door over USB was replaced by the published one within a sync interval. Going
+ * back is still possible, but it has to be said: publish with --rollback.
+ *
+ * A running version that does not parse is offered the image, as before: that
+ * door is reporting something nobody can reason about, and the published build
+ * is the way out of it.
+ */
+export function wouldOffer(rec: FirmwareRecord, running: string | undefined): boolean {
+  if (rec.version === running) return false;
+  if (!running || rec.rollback) return true;
+  const c = compareVersions(rec.version, running);
+  return Number.isNaN(c) || c > 0;
 }
 
 /** Board names contain spaces ("ESP32 DevKit V1"); row keys may not. */
@@ -220,6 +261,7 @@ export async function getFirmwareFor(board: string): Promise<FirmwareRecord | un
       sha256: e.sha256,
       sizeBytes: e.sizeBytes ?? 0,
       publishedAt: e.publishedAt ?? '',
+      rollback: e.rollback === true,
     };
   } catch {
     return undefined;      // nothing published for this board: offer nothing
@@ -241,6 +283,7 @@ export async function listFirmware(): Promise<FirmwareRecord[]> {
     out.push({
       board: e.board, version: e.version, blobName: e.blobName,
       sha256: e.sha256, sizeBytes: e.sizeBytes ?? 0, publishedAt: e.publishedAt ?? '',
+      rollback: e.rollback === true,
     });
   }
   return out;

@@ -144,7 +144,10 @@ function Available({ avail }) {
             headers={['Board', 'Version', 'Size', 'Published', 'Doors on this board']}
             rows={rows.map((r) => [
               <code>{r.board}</code>,
-              <strong>{r.version}</strong>,
+              <>
+                <strong>{r.version}</strong>
+                {r.rollback && <> <Pill kind="warn">rollback</Pill></>}
+              </>,
               `${Math.round(r.sizeBytes / 1024)} KB`,
               new Date(r.publishedAt).toLocaleString(),
               r.doors === 0
@@ -153,6 +156,11 @@ function Available({ avail }) {
                     {r.onVersion > 0 && <Pill kind="ok">{r.onVersion} up to date</Pill>}
                     {r.wouldBeOffered > 0 && <Pill kind="warn">{r.wouldBeOffered} will be offered</Pill>}
                     {r.held > 0 && <Pill>{r.held} held</Pill>}
+                    {r.ahead > 0 && (
+                      <span title="Running a newer build than this one. Not offered it: publish with --rollback to take them back.">
+                        <Pill>{r.ahead} ahead</Pill>
+                      </span>
+                    )}
                   </>,
             ])}
           />}

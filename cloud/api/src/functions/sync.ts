@@ -23,6 +23,7 @@ import {
   touchDoor,
   ingestEvents,
   getFirmwareFor,
+  wouldOffer,
 } from '../storage';
 
 export async function sync(
@@ -141,7 +142,8 @@ export async function sync(
     ctx.log(`sync ${door.deviceId} is held back from firmware offers (fwHold)`);
   } else if (body.board) {
     const fw = await getFirmwareFor(body.board);
-    if (fw && fw.version !== body.firmware) {
+    // Newer only, unless the image was published as a rollback -- see wouldOffer.
+    if (fw && wouldOffer(fw, body.firmware)) {
       response.firmware = {
         board: fw.board,          // echoed so the device can re-check before flashing
         version: fw.version,

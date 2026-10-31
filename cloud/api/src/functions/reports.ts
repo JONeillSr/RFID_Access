@@ -24,7 +24,7 @@ import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/fu
 import { TableClient, odata } from '@azure/data-tables';
 import { DefaultAzureCredential } from '@azure/identity';
 import { requireRole, isDenied } from '../adminAuth';
-import { invertedTs, monthKey, listFirmware } from '../storage';
+import { invertedTs, monthKey, listFirmware, wouldOffer } from '../storage';
 import { compareSequence } from '../eventTime';
 import { EventType } from '../../../shared/types';
 
@@ -312,7 +312,8 @@ app.http('reportFirmwareAvailable', {
         sizeBytes: f.sizeBytes,
         publishedAt: f.publishedAt,
         sha256: f.sha256,
-        doors: 0, onVersion: 0, wouldBeOffered: 0, held: 0, doorNames: [] as string[],
+        doors: 0, onVersion: 0, wouldBeOffered: 0, held: 0, ahead: 0, doorNames: [] as string[],
+        rec: f,
       });
     }
 
@@ -335,10 +336,14 @@ app.http('reportFirmwareAvailable', {
       b.doorNames.push(d.name);
       if (d.firmware === b.version) b.onVersion++;
       else if (d.fwHold) b.held++;
-      else b.wouldBeOffered++;
+      else if (wouldOffer(b.rec, d.firmware)) b.wouldBeOffered++;
+      // Running something newer than the published image, and left alone.
+      else b.ahead++;
     }
 
-    const rows = [...boards.values()].sort((a, b) => a.board.localeCompare(b.board));
+    const rows = [...boards.values()]
+      .map(({ rec, ...r }) => ({ ...r, rollback: rec.rollback === true }))
+      .sort((a, b) => a.board.localeCompare(b.board));
 
     return {
       status: 200,

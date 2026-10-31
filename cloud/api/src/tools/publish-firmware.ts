@@ -18,6 +18,9 @@
  *   - Refuses an image larger than the OTA slot in partitions_rfid.csv.
  *   - Refuses a version string already published for that board unless --force,
  *     so an unchanged version number cannot silently ship different code.
+ *   - Refuses a version OLDER than the published one unless --rollback. Doors
+ *     are only offered newer images, so a plain older publish reaches nothing;
+ *     --rollback marks it as one, and then it is offered to newer doors too.
  *   - Uploads the blob BEFORE writing the metadata, so a failure part-way leaves
  *     the old offer intact rather than pointing devices at a missing image.
  */
@@ -27,7 +30,7 @@ import { DefaultAzureCredential } from '@azure/identity';
 import { createHash } from 'node:crypto';
 import { readFileSync, existsSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
-import { getFirmwareFor, putFirmware, listFirmware, boardKey } from '../storage';
+import { getFirmwareFor, putFirmware, listFirmware, boardKey, compareVersions } from '../storage';
 
 // app0 size from partitions_rfid.csv (0x1D0000). An image beyond this cannot be
 // written to the inactive slot at all.
@@ -45,6 +48,7 @@ function arg(name: string): string | undefined {
   return i >= 0 ? process.argv[i + 1] : undefined;
 }
 const force = process.argv.includes('--force');
+const rollback = process.argv.includes('--rollback');
 const listOnly = process.argv.includes('--list');
 
 async function main() {
@@ -78,6 +82,7 @@ async function main() {
     console.error('Usage: --board "<BOARD_NAME>" --version <x.y.z> --file <firmware.bin>');
     console.error('       --list                 show what is currently published');
     console.error('       --force                overwrite an existing version');
+    console.error('       --rollback             publish an OLDER version, offered to doors on newer ones');
     console.error('\nBoard must match the device\'s BOARD_NAME exactly, e.g. "ESP32 DevKit V1".');
     process.exit(1);
   }
@@ -166,6 +171,28 @@ async function main() {
     process.exit(1);
   }
 
+  // GUARD: going backwards is said out loud. Doors are only offered a newer
+  // image, so an older one published plainly would reach nothing -- and the
+  // usual reason to publish one is to take doors back off a bad build, which
+  // only --rollback does.
+  const dir = existing ? compareVersions(version, existing.version) : 1;
+  if (dir < 0 && !rollback) {
+    console.error(
+      `\n${version} is OLDER than the published ${existing!.version} for ${board}.\n\n` +
+        'Doors are only offered a newer image, so this would reach no door already\n' +
+        `on ${existing!.version}. To take doors back, pass --rollback: every door on this\n` +
+        `board not running ${version} is then offered it, newer ones included.\n`
+    );
+    process.exit(1);
+  }
+  if (rollback && !(dir < 0)) {
+    console.error(
+      `\n--rollback, but ${version} is not older than the published ` +
+        `${existing?.version ?? '(nothing)'}. Drop the flag.\n`
+    );
+    process.exit(1);
+  }
+
   const blobName = `${boardKey(board)}/${version}/firmware.bin`;
   const client = blobs.getContainerClient(container).getBlockBlobClient(blobName);
 
@@ -183,11 +210,15 @@ async function main() {
     sha256,
     sizeBytes: size,
     publishedAt: new Date().toISOString(),
+    // Cleared by the next ordinary publish, which writes the record afresh.
+    rollback,
   });
 
   console.log(`  sha256 ${sha256}`);
   console.log(`\nPublished. Devices reporting board "${board}" will be offered ${version}`);
-  console.log('on their next sync. Other boards are unaffected.\n');
+  console.log(rollback
+    ? 'on their next sync -- including doors on NEWER versions (rollback). Other boards are unaffected.\n'
+    : 'on their next sync if they run an older version. Other boards are unaffected.\n');
   console.log('Devices refuse any image whose board does not match their own, and');
   console.log('defer flashing while their door is unlocked.\n');
 }

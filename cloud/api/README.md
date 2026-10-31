@@ -230,6 +230,15 @@ npm run publish-fw -- --board "ESP32 DevKit V1" --version 2.5.1 `
 
 The board string must match the device's `BOARD_NAME` exactly.
 
+**Doors are only offered a newer version.** A door running something newer than
+the published image — one flashed over USB to prove a build — is left alone and
+shows as *ahead* in `npm run fleet` and on the Reports page. Before 2.9.0 the rule
+was "different", and such a door was pulled back to the published image within
+one sync. To take doors back off a bad build on purpose, publish the older
+version with `--rollback`; the tool refuses an older version without it. A
+rollback is offered to every door on that board not already running it, and the
+next ordinary publish clears the flag.
+
 **Guards, because this failure is unrecoverable without physical access:**
 
 - Refuses `firmware.factory.bin` — that is the merged image for USB flashing at
