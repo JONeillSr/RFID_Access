@@ -1,10 +1,22 @@
-export function Table({ headers, rows }) {
+/**
+ * `cards` lets a narrow screen show each row as a card instead of a table too
+ * wide to read: the first cell becomes the card's title, the others are labelled
+ * with their header, and an unheaded last cell (row actions) sits along the
+ * bottom. On a wide screen it is an ordinary table; the switch is pure CSS.
+ */
+export function Table({ headers, rows, cards }) {
+  const cellProps = (j) => {
+    if (!cards) return {};
+    if (j === 0) return { class: 'title' };
+    if (!headers[j]) return { class: 'acts' };
+    return { 'data-label': headers[j] };
+  };
   return (
-    <table>
+    <table class={cards ? 'cards' : undefined}>
       <thead><tr>{headers.map((h) => <th key={h}>{h}</th>)}</tr></thead>
       <tbody>
         {rows.map((cells, i) => (
-          <tr key={i}>{cells.map((c, j) => <td key={j}>{c}</td>)}</tr>
+          <tr key={i}>{cells.map((c, j) => <td key={j} {...cellProps(j)}>{c}</td>)}</tr>
         ))}
       </tbody>
     </table>

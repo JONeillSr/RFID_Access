@@ -137,6 +137,7 @@ This door last checked in ${d.silentMinutes} minutes ago. If it ` +
     <>
       <h2>Doors</h2>
       <Table
+        cards
         headers={['Door', 'Site', 'Board', 'Firmware', 'Groups', 'Last seen', '']}
         rows={doors.map((d) => [
           <div><strong>{d.name}</strong><div class="muted">{d.deviceId}</div></div>,

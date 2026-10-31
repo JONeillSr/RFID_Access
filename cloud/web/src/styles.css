@@ -141,3 +141,33 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .consequence strong{font-weight:600}
 .clickable{cursor:pointer}
 .clickable:hover{background:var(--raised)}
+
+/* --- phones ----------------------------------------------------------------
+   Wide tables are what break first on a phone. A table marked `cards` (see
+   Table.jsx) becomes one card per row; the header and nav give up space they
+   only need on a desk. Row actions grow to a size a thumb can hit, since a
+   Release pressed from the yard is the reason to open this on a phone at all. */
+@media (max-width:720px){
+  main{padding:16px}
+  header{padding:10px 16px;gap:10px}
+  header .who{display:none}
+  header button{white-space:nowrap}
+  header .brand .pd{display:none}
+  nav{padding:8px 16px;overflow-x:auto;scrollbar-width:none}
+  .card input{margin-bottom:8px}
+  nav a{white-space:nowrap}
+
+  table.cards thead{display:none}
+  table.cards,table.cards tbody,table.cards tr,table.cards td{display:block;width:100%}
+  table.cards tr{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:12px 14px;margin-bottom:12px}
+  table.cards td{border:0;padding:3px 0;display:grid;grid-template-columns:92px 1fr;gap:10px}
+  table.cards td[data-label]::before{content:attr(data-label);color:var(--muted);font-size:12px;
+    text-transform:uppercase;letter-spacing:.04em;padding-top:2px}
+  table.cards td.title{display:block;font-size:16px;margin-bottom:6px}
+  table.cards td.acts{display:block;margin-top:8px;padding-top:10px;border-top:1px solid var(--raised)}
+  table.cards td.acts .pill{margin:0 6px 8px 0}
+  table.cards .rowacts{flex-wrap:wrap;gap:8px}
+  table.cards .rowacts button{background:var(--raised);border-color:var(--line);color:var(--text);
+    padding:9px 14px;font-size:14px;min-height:40px}
+}
