@@ -56,7 +56,16 @@ firmware updates.
   unique device ID from its MAC, so units never collide on the network, and
   hostname / door name / site name are set per unit on `/setup`.
 - **OTA updates** — firmware can be flashed over the network via ElegantOTA at
-  `/update`.
+  `/update`, or published once to the backend, which offers it to every paired
+  door on that board running an **older** version. Going back is an explicit
+  `--rollback`, never an accident of publishing.
+- **Remote release** — an Operator can unlock a door for one relay hold from the
+  admin app (**Doors → Release**), for letting in someone without a fob. Lands
+  within seconds, is logged as *released remotely by &lt;name&gt;*, and is ignored if
+  it reaches the door more than a minute late. Firmware 2.10.0 and later.
+- **Remote restart** — an Admin can restart a door from the admin app
+  (**Doors → Restart**). It waits until the strike is not mid-release, and lapses
+  if the door does not check in within 15 minutes. Firmware 2.9.0 and later.
 - **Remote logging** — live device log over the network at `/webserial` and via
   a telnet console (port 23), showing boot diagnostics and access events with no
   USB cable needed.
@@ -367,7 +376,7 @@ app-specific status fields.
 | `/api/schedule` | GET current schedule/state, POST to update |
 | `/api/add` `/api/rename` `/api/remove` | fob management (POST, JSON) |
 | `/api/list` `/api/taps` | roster and recent taps (GET, JSON) |
-| `/status` | live status page: device ID, door and site, WiFi IP, mDNS name, uptime, **heap** (free / min since boot / largest block), OLED, **`Reader:`** running line format (and any pending change), time **and how long since NTP**, schedule, **`Contact:`** door state, **`WiFi:`** network and any move in progress, enrolled count, **`Backend:`** host, cloud sync state, **`Retry:`** backoff when not on the normal poll, event spool, last tap |
+| `/status` | live status page: device ID, door and site, WiFi IP, mDNS name, uptime, **heap** (free / min since boot / largest block), OLED, **`Reader:`** running line format (and any pending change), time **and how long since NTP**, schedule, **`Relay:`** hold per grant and result-screen hold, **`Contact:`** door state, **`WiFi:`** network and any move in progress, enrolled count, **`Backend:`** host, cloud sync state, **`Retry:`** backoff when not on the normal poll, **`Remote:`** how a remote release will arrive (polling the feed every 3 s, or next sync only and why), event spool, last tap |
 
 The heap line is worth reading properly, because two of its three numbers have
 already been the difference between a diagnosis and a guess:

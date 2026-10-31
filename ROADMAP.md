@@ -338,10 +338,12 @@ values arrive in the sync response instead of being set per door.
 >    So a door that declined an update looked identical to one never offered any.
 >    Fixed with a logger callback and a separate `fwNote` that survives success.
 >
-> **Publishing rule learned the hard way:** the backend offers whenever the
-> published version *differs*, not only when it is newer — deliberately, so a
-> rollback is possible. The cost is that publishing an older version pulls the
-> fleet back to it. Publish the version you want doors running.
+> **Publishing rule learned the hard way:** the backend used to offer whenever
+> the published version *differed*, so that a rollback was possible — and so
+> publishing an older version pulled the fleet back to it. Since 2026-10 it
+> offers only a **newer** version; going back takes `publish-fw --rollback`,
+> which the tool refuses for anything that is not actually older. A door running
+> ahead of the published version is reported as *ahead*, not offered a downgrade.
 >
 > **Still outstanding in this phase:**
 > - **The staleness path is proven only by construction.** No door has yet been
@@ -420,6 +422,12 @@ people, all four reports, custom domain with certificate, branding — plus:
   with no doors opens nothing and that is invisible if you only list names.
 - **Doors** (Admin) — name, site, groups, relay/result hold, firmware hold, and
   a "who gets in?" roster preview answering *why can't X open this door*.
+- **Restart** (Admin, 2.9.0+) and **Release** (Operator, 2.10.0+) per door.
+  Release reaches the door in seconds through a per-door blob it polls with a
+  read-only SAS, not by holding a Function request open: storage bills per
+  transaction, a held request per second (~$130/month for the fleet).
+  *Release is unproven on hardware as of 2026-10-31* — in particular the heap
+  cost of keeping the feed's TLS session open between syncs.
 
 Dialogs state the consequence before you commit: deactivating a fob says which
 doors are **not checking in** and will therefore keep accepting it. That gap is
@@ -1159,7 +1167,7 @@ Three ways now, in the order to reach for them:
 | | Use when | If it goes wrong |
 |---|---|---|
 | **Wi-Fi fields on `/setup`** | the new network is reachable from where you are | the door returns to the network that worked |
-| **Admin app: *Open the setup network at the next restart*** | the new network is not reachable from the current one | the AP closes itself after 30 minutes |
+| **Admin app: *Open the setup network at the next restart***, then **Restart** | the new network is not reachable from the current one | the AP closes itself after 30 minutes |
 | **Hold the exit button at power-on** | the door is on a network nobody can reach | release and reboot; nothing was erased |
 
 Against the three requirements this section originally set:

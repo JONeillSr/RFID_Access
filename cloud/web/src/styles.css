@@ -36,7 +36,7 @@ nav a{background:none;border:0;color:var(--muted);cursor:pointer;padding:7px 14p
 nav a:hover{color:var(--text);background:var(--raised)}
 nav a.active{color:var(--accent);background:var(--accent-bg)}
 
-main{padding:22px;max-width:1150px}
+main{padding:22px;max-width:1600px}
 h2{font-size:20px;margin:0 0 16px;font-weight:600}
 h3{font-size:15px;margin:0 0 8px;font-weight:600}
 
@@ -126,7 +126,7 @@ button.small{padding:4px 10px;font-size:13px}
 button:disabled{opacity:.5;cursor:not-allowed}
 
 /* Row action buttons: quiet until hovered, so tables stay readable. */
-.rowacts{display:flex;gap:6px;flex-wrap:wrap}
+.rowacts{display:flex;gap:6px;flex-wrap:nowrap}
 .rowacts button{background:none;border-color:transparent;color:var(--muted);
   padding:3px 9px;font-size:13px}
 .rowacts button:hover{background:var(--raised);border-color:var(--line);color:var(--text)}
