@@ -9,7 +9,7 @@
 export const TAP = 1, EXIT = 2, SCHED_ON = 3, SCHED_OFF = 4,
              BOOT = 5, CONFIG = 6, SYNC_FAIL = 7,
              DOOR_FORCED = 8, DOOR_HELD = 9,
-             FW_UPDATED = 10, FW_FAILED = 11;
+             FW_UPDATED = 10, FW_FAILED = 11, REMOTE_RELEASE = 12;
 
 // EventLog::Reason values used by the door-position events.
 const R_CLOSED = 8;
@@ -30,6 +30,8 @@ export function describeEvent(e) {
         : 'DOOR HELD OPEN';
     case FW_UPDATED: return `firmware updated ${e.cred}`;
     case FW_FAILED: return `firmware FAILED ${e.cred}`;
+    case REMOTE_RELEASE:
+      return e.releasedBy ? `released remotely by ${e.releasedBy}` : 'released remotely';
     default: return `type ${e.type}`;
   }
 }

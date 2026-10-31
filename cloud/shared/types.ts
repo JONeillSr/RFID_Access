@@ -164,7 +164,30 @@ export interface Door {
   restartReqBy?: string;
   /** When the door last confirmed a remote restart (ISO). */
   restartDoneAt?: string;
+  /**
+   * The latest remote release: its id, when it was asked for (ISO) and by whom,
+   * and when the door confirmed it. Unlike a restart the request is not cleared
+   * on confirmation -- releaseDoneAt later than releaseReqAt is what says it
+   * happened, so the admin app can show the outcome of the last one.
+   */
+  releaseReqId?: string;
+  releaseReqAt?: string;
+  releaseReqBy?: string;
+  releaseDoneAt?: string;
+  /** Id of the release the door last confirmed; equal to releaseReqId once done. */
+  releaseDoneId?: string;
+  /** The door's firmware can be released remotely (reported by the door). */
+  hasRemoteRelease?: boolean;
 }
+
+/**
+ * How long a remote release stays deliverable.
+ *
+ * Short on purpose. A release is for someone standing at the door now; one that
+ * arrives after they have given up and left opens the door for whoever is there
+ * instead. Past this the door ignores it and the admin app says it lapsed.
+ */
+export const RELEASE_REQUEST_TTL_MS = 60 * 1000;
 
 /**
  * How long a remote restart request stays deliverable.
@@ -198,6 +221,11 @@ export enum EventType {
   FirmwareUpdated = 10,
   /** OTA refused or failed. `cred` carries the target version. */
   FirmwareFailed  = 11,
+  /**
+   * Released from the admin app. `cred` carries the release request id, which
+   * ingest resolves to who asked (StoredEvent.releasedBy).
+   */
+  RemoteRelease   = 12,
 }
 
 export enum EventReason {
@@ -261,6 +289,8 @@ export interface StoredEvent extends Omit<DeviceEvent, 'timeApprox'> {
   timeNotBefore?: string;
   /** ISO. */
   timeNotAfter?: string;
+  /** For a RemoteRelease event: who released the door, from the request record. */
+  releasedBy?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -299,6 +329,10 @@ export interface SyncRequest {
    * before 2.9.0, and on a door that has never been restarted remotely.
    */
   restartId?: string;
+  /** This firmware can be released remotely. Absent before 2.10.0. */
+  remoteRelease?: boolean;
+  /** Id of the last remote release this door acted on. */
+  releaseId?: string;
   events: DeviceEvent[];
 }
 
@@ -336,6 +370,18 @@ export interface SyncResponse {
    * re-sent before the backend hears back cannot restart it twice.
    */
   restart?: { id: string };
+  /**
+   * The outstanding remote release, while inside RELEASE_REQUEST_TTL_MS. The
+   * slow path: a door that cannot poll its release feed still gets it here,
+   * within one sync interval. `exp` is unix seconds, judged against serverEpoch.
+   */
+  release?: { id: string; exp: number };
+  /**
+   * Where this door polls for a release between syncs: a read-only SAS URL for
+   * its own blob, re-issued on every sync. The fast path. Sent only to doors
+   * that report remoteRelease.
+   */
+  releaseFeed?: { url: string };
   /** Server time, so a door with no NTP can still bound its clock. */
   serverEpoch: number;
 }

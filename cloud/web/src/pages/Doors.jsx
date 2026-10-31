@@ -15,6 +15,22 @@ function restartState(d) {
   return Date.now() - Date.parse(d.restartReqAt) < RESTART_TTL_MS ? 'pending' : 'lapsed';
 }
 
+/** Mirrors RELEASE_REQUEST_TTL_MS in cloud/shared/types.ts -- change both. */
+const RELEASE_TTL_MS = 60 * 1000;
+
+/**
+ * The latest remote release: 'done' (confirmed by the door), 'pending' (inside
+ * its minute), 'lapsed' (the door never confirmed it), or null.
+ */
+function releaseState(d) {
+  if (!d.releaseReqAt) return null;
+  if (d.releaseDone) return 'done';
+  return Date.now() - Date.parse(d.releaseReqAt) < RELEASE_TTL_MS ? 'pending' : 'lapsed';
+}
+
+/** Only recent outcomes are worth a pill; last week's release is history. */
+const recent = (iso, mins) => iso && Date.now() - Date.parse(iso) < mins * 60000;
+
 export function Doors({ notify, flash }) {
   const [doors, setDoors] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -36,11 +52,14 @@ export function Doors({ notify, flash }) {
   // While a restart is outstanding, refresh so the pill clears by itself when
   // the door confirms it -- otherwise "pending" sits there until someone reloads.
   const anyPending = doors.some((d) => restartState(d) === 'pending');
+  // A release is someone waiting at a door, so it is watched closely: the door
+  // confirms within seconds, and the person who pressed the button should see it.
+  const releasing = doors.some((d) => releaseState(d) === 'pending');
   useEffect(() => {
-    if (!anyPending) return;
-    const id = setInterval(load, 15000);
+    if (!anyPending && !releasing) return;
+    const id = setInterval(load, releasing ? 2000 : 15000);
     return () => clearInterval(id);
-  }, [anyPending]);
+  }, [anyPending, releasing]);
 
   const pair = async () => {
     if (!name.trim()) return notify(new Error('Enter a door name first'));
@@ -90,6 +109,19 @@ This door last checked in ${d.silentMinutes} minutes ago. If it ` +
     } catch (e) { notify(e); }
   };
 
+  const release = async (d) => {
+    if (!confirm(`Release ${d.name} now?\n\nIt unlocks for the usual relay hold, as if a fob ` +
+                 'had been tapped. This is logged under your name.')) return;
+    try {
+      await api('/v1/admin/doors/release', {
+        method: 'POST',
+        body: JSON.stringify({ deviceId: d.deviceId }),
+      });
+      await load();
+      flash(`Releasing ${d.name}…`);
+    } catch (e) { notify(e); }
+  };
+
   /** "Why can't X get in?" answered from the door's side. */
   const showRoster = async (d) => {
     try {
@@ -119,6 +151,17 @@ This door last checked in ${d.silentMinutes} minutes ago. If it ` +
           <>
             {!d.paired && <Pill kind="warn">unpaired</Pill>}
             {d.fwHold && <Pill>held</Pill>}
+            {releaseState(d) === 'pending' && <Pill kind="warn">releasing…</Pill>}
+            {releaseState(d) === 'done' && recent(d.releaseDoneAt, 10) && (
+              <span title={`Released by ${d.releaseReqBy || 'an operator'} at ${new Date(d.releaseDoneAt).toLocaleString()}`}>
+                <Pill kind="ok">released</Pill>
+              </span>
+            )}
+            {releaseState(d) === 'lapsed' && recent(d.releaseReqAt, 10) && (
+              <span title="The door did not confirm the release within a minute, so it was not opened.">
+                <Pill kind="warn">release not confirmed</Pill>
+              </span>
+            )}
             {restartState(d) === 'pending' && (
               <span title={`Requested by ${d.restartReqBy || 'an admin'} at ${new Date(d.restartReqAt).toLocaleString()}`}>
                 <Pill kind="warn">restart pending</Pill>
@@ -130,6 +173,10 @@ This door last checked in ${d.silentMinutes} minutes ago. If it ` +
               </span>
             )}
             <div class="rowacts">
+              {atLeast('Operator') && d.paired && d.hasRemoteRelease &&
+               d.silentMinutes !== null && d.silentMinutes <= 2 && releaseState(d) !== 'pending' && (
+                <button class="small" onClick={() => release(d)}>Release</button>
+              )}
               <button class="small" onClick={() => showRoster(d)}>Who gets in?</button>
               {canEdit && <button class="small" onClick={() => setEditing({ ...d })}>Edit</button>}
               {canEdit && d.paired && restartState(d) !== 'pending' && (

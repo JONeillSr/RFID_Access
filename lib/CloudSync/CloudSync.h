@@ -41,6 +41,8 @@
 #include "freertos/semphr.h"
 #include "DeviceSettings.h"
 #include "DeviceIdentity.h"
+#include <WiFiClientSecure.h>
+class HTTPClient;
 
 class CloudSync {
 public:
@@ -54,6 +56,10 @@ public:
     /// Backoff bounds after consecutive failures.
     static const uint32_t BACKOFF_MIN_MS = 30000;       // 30 s
     static const uint32_t BACKOFF_MAX_MS = 15UL * 60UL * 1000UL;   // 15 min
+
+    /// How often the release feed is checked between syncs. A remote release
+    /// reaches the door within this of being pressed, while the feed is up.
+    static const uint32_t RELEASE_POLL_MS = 3000;
 
     struct Status {
         bool     paired          = false;
@@ -78,6 +84,9 @@ public:
         /// and clearing it on success would erase the only explanation of why a
         /// door is not updating.
         String   fwNote;
+        /// How a remote release would reach this door right now: polling the
+        /// feed, or only on the next sync and why. Empty until it is known.
+        String   releaseNote;
     };
 
     /// Call once in setup(), AFTER WiFi, Roster and EventLog are up. Starts the
@@ -189,6 +198,13 @@ public:
     /// will ignore.
     void setHasDoorContact(bool v) { _hasDoorContact = v; _hasContactKnown = true; }
 
+    /// Called on the sync task when the admin app releases this door. The id
+    /// is new and the request is in date; what a release does is the app's
+    /// business. Setting it is what tells the backend this door can be
+    /// released remotely -- with no handler, the button stays unavailable.
+    using ReleaseFn = std::function<void(const String& id)>;
+    void setReleaseHandler(ReleaseFn fn) { _onRelease = fn; }
+
     /// Where this module reports what it decided.
     ///
     /// Without it, everything here is invisible: a refused or deferred firmware
@@ -208,6 +224,7 @@ private:
     static constexpr const char* KEY_DEVICE_KEY = "cloudKey";
     static constexpr const char* KEY_CLOUD_HOST = "cloudHost";
     static constexpr const char* KEY_RESTART_ID = "restartId";
+    static constexpr const char* KEY_RELEASE_ID = "releaseId";
 
     mutable SemaphoreHandle_t _mutex = nullptr;
     void lock()   const { if (_mutex) xSemaphoreTake(_mutex, portMAX_DELAY); }
@@ -241,6 +258,38 @@ private:
     // loop, for the same TLS-teardown reason as the firmware offer. Both guarded
     // by _mutex.
     String _restartId, _pendingRestartId;
+
+    // Remote release. Touched only on the sync task, except _feedPause and
+    // _feedClient, which pair() uses to get the feed's TLS session out of the way.
+    ReleaseFn _onRelease = nullptr;
+    String    _releaseId;              // last release acted on (NVS), reported every sync
+    // Last one that arrived too late. Kept apart from _releaseId on purpose:
+    // that one is reported as done, and a lapsed release must not be.
+    String    _lapsedReleaseId;
+    String    _feedUrl, _feedEtag;     // the feed's SAS URL from sync, and its last ETag
+    uint8_t   _feedFailures = 0;       // consecutive; the feed rests until next sync after a few
+    // Both kept between polls. The HTTPClient too: its destructor stop()s the
+    // connection, so a local one would cost a full handshake every poll.
+    WiFiClientSecure* volatile _feedClient = nullptr;
+    HTTPClient*       _feedHttp = nullptr;
+    volatile bool _feedPause = false;
+    // Server time, from the last sync: the epoch it reported and millis() then.
+    // Release expiry is judged against this, because the door's own clock may
+    // never have synced and a release must not outlive its minute.
+    uint32_t  _srvEpoch = 0, _srvAtMs = 0;
+    uint32_t  serverNow() const {
+        return _srvEpoch ? _srvEpoch + (millis() - _srvAtMs) / 1000 : 0;
+    }
+
+    /// Act on a release from either path, once per id and only while in date.
+    void considerRelease(const String& id, uint32_t exp, const char* via);
+    /// One check of the feed. Opens the connection if needed and if the heap
+    /// allows; leaves it open for the next one.
+    void pollReleaseFeed();
+    /// Drop the feed's TLS session. Called before every sync: two TLS contexts
+    /// do not fit, and a sync must always be able to run.
+    void closeFeed();
+    void setReleaseNote(const String& n);
 
     /// Record the pending restart as honoured, so it is not acted on again after
     /// the reboot. Returns the id, or empty if none was pending.

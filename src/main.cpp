@@ -494,6 +494,19 @@ void accessTask(void* pv) {
                 continue;
             }
 
+            if (evt.type == EVT_REMOTE_RELEASE) {
+                // From the admin app, for someone at the door. Released exactly
+                // as a fob grant is -- same relay hold, and armed, so opening the
+                // door is not reported as forced. The event carries the request
+                // id; the backend knows who asked and fills that in.
+                paxton.ledGranted(); ledGranted(); buzzerGranted();
+                relayGrantedNonBlocking();
+                webService.log(String("[access] REMOTE release ") + evt.card.uid);
+                eventLog.append(EventLog::EVT_REMOTE_RELEASE, EventLog::R_NONE, true, evt.card.uid);
+                oledShowResult(true, "Remote release", "Door released");
+                continue;
+            }
+
             bool granted = acProcessEvent(evt);
             // Verdict shows both at the door (reader LED) and on the panel LED.
             if (granted) { paxton.ledGranted(); buzzerGranted(); relayGrantedNonBlocking(); ledGranted(); }
@@ -1166,6 +1179,11 @@ void setup() {
                     body += "Retry:    backing off " + String(cs.backoffSecs) +
                             "s, next attempt in " + String(cs.nextAttemptSecs) + "s\n";
                 }
+                // How fast a Release from the admin app would land right now.
+                // "next sync only" is still a working door, just a slower one.
+                if (cs.paired && cs.releaseNote.length()) {
+                    body += "Remote:   " + cs.releaseNote + "\n";
+                }
             }
             body += "Events:   " + String(eventLog.pending()) + " pending, " +
                     String(eventLog.bytesOnDisk()) + " B on disk, boot #" +
@@ -1221,6 +1239,15 @@ void setup() {
         // is back within seconds of boot, where an OTA would wait out the hours.
         cloudSync.setSafeToRestart([]() {
             return relayOffAt == 0;
+        });
+        // A remote release goes through accessTask like the exit button, so the
+        // relay is only ever driven from one task. Setting this is also what
+        // tells the backend the door can be released remotely.
+        cloudSync.setReleaseHandler([](const String& id) {
+            AppEvent e = {};
+            e.type = EVT_REMOTE_RELEASE;
+            strncpy(e.card.uid, id.c_str(), sizeof(e.card.uid) - 1);
+            xQueueSend(appEventQueue, &e, 0);
         });
 
         // Give CloudSync a voice. Without this its decisions -- refused image,

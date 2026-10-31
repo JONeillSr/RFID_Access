@@ -14,7 +14,8 @@
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import type { SyncRequest, SyncResponse } from '../../../shared/types';
-import { RESTART_REQUEST_TTL_MS } from '../../../shared/types';
+import { RESTART_REQUEST_TTL_MS, RELEASE_REQUEST_TTL_MS } from '../../../shared/types';
+import { releaseFeedUrl } from '../releaseFeed';
 import { authenticateDevice } from '../auth';
 import {
   effectiveRoster,
@@ -129,6 +130,34 @@ export async function sync(
     }
   }
 
+  // ---- remote release ----------------------------------------------------
+  // Confirmed when the door reports the id. Kept on the row (releaseDoneId)
+  // rather than cleared, so the admin app can show how the last one went.
+  const reportedRelease = typeof body.releaseId === 'string' ? body.releaseId : '';
+  const releaseId = doorRow?.releaseReqId;
+  const releaseDone = !!releaseId &&
+    (doorRow?.releaseDoneId === releaseId || reportedRelease === releaseId);
+  const newlyReleased = !!releaseId && reportedRelease === releaseId &&
+    doorRow?.releaseDoneId !== releaseId;
+  if (releaseId && !releaseDone) {
+    // The slow path, for a door that cannot poll its feed. Only while fresh: a
+    // release that arrives after the visitor has left opens the door for
+    // whoever is standing there instead.
+    const reqMs = Date.parse(doorRow?.releaseReqAt ?? '');
+    if (Date.now() - reqMs < RELEASE_REQUEST_TTL_MS) {
+      response.release = { id: releaseId, exp: Math.floor((reqMs + RELEASE_REQUEST_TTL_MS) / 1000) };
+    }
+  }
+  if (body.remoteRelease === true) {
+    // Re-issued every sync, so a door never holds a URL near expiry. A failure
+    // costs only the fast path -- never the sync.
+    try {
+      response.releaseFeed = { url: await releaseFeedUrl(door.deviceId) };
+    } catch (e: any) {
+      ctx.warn(`sync ${door.deviceId}: could not issue release feed URL: ${e?.message ?? e}`);
+    }
+  }
+
   // ---- firmware offer ----------------------------------------------------
   // Looked up BY THE DEVICE'S OWN BOARD. If nothing is published for that board,
   // nothing is offered — never a fallback to another variant's image, because a
@@ -173,6 +202,8 @@ export async function sync(
     // to "no clock" for its whole life even after NTP arrives.
     ...(bootEpoch > 0 ? { bootId: reportedBootId, bootEpoch } : {}),
     ...(restartDone ? { restartReqId: '', restartDoneAt: new Date().toISOString() } : {}),
+    ...(typeof body.remoteRelease === 'boolean' ? { hasRemoteRelease: body.remoteRelease } : {}),
+    ...(newlyReleased ? { releaseDoneId: releaseId, releaseDoneAt: new Date().toISOString() } : {}),
   });
 
   ctx.log(

@@ -21,7 +21,9 @@ import { TableClient } from '@azure/data-tables';
 import { DefaultAzureCredential } from '@azure/identity';
 import { randomBytes } from 'node:crypto';
 import { requireRole, isDenied, actor } from '../adminAuth';
-import { bumpRosterRev, getDoor, effectiveRoster } from '../storage';
+import { bumpRosterRev, getDoor, effectiveRoster, putReleaseRecord } from '../storage';
+import { publishRelease } from '../releaseFeed';
+import { RELEASE_REQUEST_TTL_MS } from '../../../shared/types';
 import { issueEnrollCode } from '../auth';
 import {
   getSweepConfig, runSweep, SWEEP_MIN_MINUTES, SWEEP_MAX_MINUTES,
@@ -428,6 +430,14 @@ app.http('adminDoors', {
           restartReqAt: d.restartReqId ? (d.restartReqAt ?? null) : null,
           restartReqBy: d.restartReqId ? (d.restartReqBy ?? '') : '',
           restartDoneAt: d.restartDoneAt ?? null,
+          // The latest remote release and whether the door confirmed it. Done
+          // when releaseDoneId matches; otherwise pending until the TTL, then
+          // lapsed -- the UI tells which from releaseReqAt.
+          hasRemoteRelease: d.hasRemoteRelease === true,
+          releaseReqAt: d.releaseReqAt ?? null,
+          releaseReqBy: d.releaseReqBy ?? '',
+          releaseDone: !!d.releaseReqId && d.releaseDoneId === d.releaseReqId,
+          releaseDoneAt: d.releaseDoneAt ?? null,
         });
       }
       doors.sort((a, b) => String(a.name).localeCompare(String(b.name)));
@@ -509,6 +519,61 @@ app.http('adminDoorRestart', {
     );
     ctx.log(`admin: ${actor(auth.principal)} requested restart of door ${deviceId} (request ${id})`);
     return ok({ deviceId, restartReqAt: at });
+  },
+});
+
+/**
+ * Release a door now, for someone standing at it.
+ *
+ * Written to the door's release blob, which it polls every few seconds, and
+ * carried on its next sync as well in case it cannot poll. Either way it is
+ * one-shot by id and expires after RELEASE_REQUEST_TTL_MS: a release that
+ * arrives after the visitor has gone opens the door for whoever is there.
+ *
+ * Operator, not Admin: letting a person in is working within the access model,
+ * the same as giving them a fob. Every release is recorded with who asked, and
+ * the door's event carries the request id so history can say so.
+ */
+app.http('adminDoorRelease', {
+  methods: ['POST'],
+  authLevel: 'anonymous',
+  route: 'v1/admin/doors/release',
+  handler: async (req: HttpRequest, ctx: InvocationContext): Promise<HttpResponseInit> => {
+    const auth = await requireRole(req, 'Operator');
+    if (isDenied(auth)) return auth.denied;
+
+    const body = (await req.json().catch(() => ({}))) as any;
+    const deviceId = String(body.deviceId ?? '').trim();
+    if (!deviceId) return bad('deviceId is required');
+
+    const door = await t('Doors').getEntity<any>('door', deviceId).catch(() => undefined);
+    if (!door) return { status: 404, jsonBody: { error: 'no such door' } };
+    if (!door.keyHash) return bad('this door is not paired');
+    if (door.hasRemoteRelease !== true) {
+      return bad('this door\'s firmware cannot be released remotely - it needs 2.10.0 or later');
+    }
+    // Refused rather than queued. A door that is not checking in would get it
+    // late or never, and the person at the door is waiting now.
+    const silentMs = door.lastSeen ? Date.now() - Date.parse(door.lastSeen) : Infinity;
+    if (silentMs > 2 * 60 * 1000) {
+      return { status: 409, jsonBody: { error: 'this door is not checking in, so it cannot be released remotely' } };
+    }
+
+    const id = `${Date.now().toString(36)}${randomBytes(3).toString('hex')}`;   // fits the door's 15-char event field
+    const now = Date.now();
+    const at = new Date(now).toISOString();
+    const by = actor(auth.principal);
+
+    // The record first, so the door's event can always be attributed; the blob
+    // next, which is what actually opens the door; the row last, for the UI.
+    await putReleaseRecord(id, { deviceId, by, at });
+    await publishRelease(deviceId, id, Math.floor((now + RELEASE_REQUEST_TTL_MS) / 1000));
+    await t('Doors').upsertEntity(
+      { partitionKey: 'door', rowKey: deviceId, releaseReqId: id, releaseReqAt: at, releaseReqBy: by },
+      'Merge'
+    );
+    ctx.log(`admin: ${by} released door ${deviceId} (request ${id})`);
+    return ok({ deviceId, releaseReqAt: at });
   },
 });
 

@@ -121,6 +121,28 @@ holds off an OTA: the clock survives a warm restart, so the window resumes
 within seconds. Pair it with `openSetupPortal` or a reader-format change to apply
 them without a site visit.
 
+**Release** (`POST /v1/admin/doors/release`, Operator) unlocks a door for the
+usual relay hold, for someone standing at it. It is refused for a door that has
+not checked in for two minutes, or whose firmware predates 2.10.0 (doors report
+`remoteRelease`). Two paths carry it, both one-shot by id and valid for 60
+seconds (`RELEASE_REQUEST_TTL_MS`):
+
+- **Fast:** the request is written to the door's blob, `release/<deviceId>`,
+  which the door polls every 3 s over a kept-open connection with
+  `If-None-Match`. It reads it with a read-only user delegation SAS for that one
+  blob, re-issued on every sync (`releaseFeed`). Storage bills per transaction;
+  holding a Function request open instead (long-poll) would keep a Flex
+  instance executing 24/7, about $130 a month at 2 GB.
+- **Slow:** sync carries an outstanding release as `release: { id, exp }`, so a
+  door that cannot poll -- the feed only runs with heap to spare, and is closed
+  before every sync -- is released one sync later.
+
+The door judges expiry against the server time from its last sync, not its own
+clock, logs a `RemoteRelease` event with the request id, and syncs at once to
+confirm it. Ingest resolves the id to who asked (`releasedBy`), from the request
+record in Meta (PK `release`). The door's `/status` page says which path is in
+use on its `Remote:` line.
+
 **There is deliberately no remote "reset WiFi".** It is the one command that
 cannot be confirmed, undone or retried: it arrives over the network it destroys,
 and the door comes back reachable only by someone standing next to it. Moving a

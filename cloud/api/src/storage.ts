@@ -152,9 +152,31 @@ export async function getDoor(deviceId: string): Promise<Door | undefined> {
       fwHold: e.fwHold === true,
       restartReqId: e.restartReqId || undefined,
       restartReqAt: e.restartReqAt || undefined,
+      releaseReqId: e.releaseReqId || undefined,
+      releaseReqAt: e.releaseReqAt || undefined,
+      releaseDoneId: e.releaseDoneId || undefined,
     };
   } catch {
     return undefined;
+  }
+}
+
+/**
+ * Remote release requests, kept so history can say who released a door. The
+ * door row only holds the latest; this keeps every one. Meta, PK 'release'.
+ */
+export async function putReleaseRecord(
+  id: string, rec: { deviceId: string; by: string; at: string }
+): Promise<void> {
+  await table('Meta').upsertEntity({ partitionKey: 'release', rowKey: id, ...rec }, 'Replace');
+}
+
+async function releaseActor(id: string): Promise<string | undefined> {
+  try {
+    const e = await table('Meta').getEntity<{ by?: string }>('release', id);
+    return e.by || undefined;
+  } catch {
+    return undefined;     // record missing: the event still stands, unattributed
   }
 }
 
@@ -167,6 +189,7 @@ export async function touchDoor(
     hasDoorContact?: boolean;
     /** '' clears an outstanding restart request once the door confirms it. */
     restartReqId?: string; restartDoneAt?: string;
+    releaseDoneId?: string; releaseDoneAt?: string; hasRemoteRelease?: boolean;
   }
 ): Promise<void> {
   await table('Doors').upsertEntity(
@@ -330,7 +353,10 @@ export function isPersonless(type: EventType): boolean {
     // Door-position events are about the door too: a forced door has, by
     // definition, nobody identified.
     type === EventType.DoorForced ||
-    type === EventType.DoorHeld
+    type === EventType.DoorHeld ||
+    // A remote release names who pressed the button, not who walked through --
+    // that is exactly the person the door could not identify.
+    type === EventType.RemoteRelease
   );
 }
 
@@ -431,7 +457,11 @@ export async function ingestEvents(
     const boot = String(ev.bootId).padStart(10, '0');
     const idx = String(ev.idx).padStart(10, '0');
 
-    const resolved = ev.cred ? index.get(ev.cred) : undefined;
+    // A remote release's cred is a request id, not a card. Resolving it as a
+    // card would at best find nothing; who released it is on the request record.
+    const isRelease = ev.type === EventType.RemoteRelease;
+    const resolved = ev.cred && !isRelease ? index.get(ev.cred) : undefined;
+    const releasedBy = isRelease && ev.cred ? await releaseActor(ev.cred) : undefined;
 
     const row: Omit<StoredEvent, 'at'> & { at: string } = {
       deviceId,
@@ -447,6 +477,7 @@ export async function ingestEvents(
       credId: resolved?.credId,
       personId: resolved?.personId,
       personName: resolved?.personName,
+      ...(releasedBy ? { releasedBy } : {}),
       at: at.toISOString(),
       timeApprox: approx,
       // Stated, never implied: a placement must not be read as a time.

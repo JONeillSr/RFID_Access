@@ -30,6 +30,15 @@ static const size_t MAX_EVENTS_PER_SYNC = 40;
 // than failing deep inside mbedTLS with an opaque error.
 static const size_t MIN_FREE_HEAP = 60000;
 
+// The release feed holds a TLS session open between syncs, so it asks for more
+// room than a sync does: the session plus MIN_FREE_HEAP to spare, and a largest
+// block a TLS record buffer fits in. Below this the feed simply does not run and
+// releases arrive by sync -- slower, never lost. The last field failure was a
+// fragmented heap during a sync's TLS session; a convenience must not cause the
+// next one. The feed is closed before every sync, so it never competes with one.
+static const size_t FEED_MIN_FREE  = 100000;
+static const size_t FEED_MIN_BLOCK = 40000;
+
 void CloudSync::begin(DeviceSettings* settings, DeviceIdentity* identity,
                       const char* defaultHost) {
     if (!_mutex) _mutex = xSemaphoreCreateMutex();
@@ -50,6 +59,7 @@ void CloudSync::begin(DeviceSettings* settings, DeviceIdentity* identity,
     _host      = _settings ? _settings->getString(KEY_CLOUD_HOST, defaultHost) : String(defaultHost);
     _deviceKey = _settings ? _settings->getString(KEY_DEVICE_KEY, "") : String();
     _restartId = _settings ? _settings->getString(KEY_RESTART_ID, "") : String();
+    _releaseId = _settings ? _settings->getString(KEY_RELEASE_ID, "") : String();
     _status.paired = _deviceKey.length() > 0;
     unlock();
 
@@ -145,6 +155,19 @@ uint32_t CloudSync::bootEpoch() const {
 
 bool CloudSync::pair(const String& code, String& err) {
     if (code.length() < 4) { err = "code too short"; return false; }
+
+    // Pairing runs on the web task and needs a TLS session of its own; the
+    // release feed may be holding one open on the sync task. Ask it to close and
+    // wait briefly -- it checks every 250 ms between polls.
+    struct FeedPause {
+        CloudSync* s;
+        explicit FeedPause(CloudSync* c) : s(c) {
+            s->_feedPause = true;
+            for (int i = 0; i < 50 && s->_feedClient; i++) delay(100);
+        }
+        ~FeedPause() { s->_feedPause = false; }
+    } pause(this);
+
     if (WiFi.status() != WL_CONNECTED) { err = "not connected to WiFi"; return false; }
     if (ESP.getFreeHeap() < MIN_FREE_HEAP) {
         err = "not enough free memory for TLS right now";
@@ -260,6 +283,10 @@ bool CloudSync::syncOnce(String& err) {
     lock();
     if (_restartId.length()) req["restartId"] = _restartId;
     unlock();
+    // Only with a handler: claiming the capability is what makes the admin app
+    // offer the Release button for this door.
+    if (_onRelease) req["remoteRelease"] = true;
+    if (_releaseId.length()) req["releaseId"] = _releaseId;
 
     JsonArray evs = req["events"].to<JsonArray>();
     for (size_t i = 0; i < n; i++) {
@@ -326,6 +353,13 @@ bool CloudSync::syncOnce(String& err) {
         err = String("bad response: ") + jerr.c_str() +
               " (" + payload.length() + " bytes)";
         return false;
+    }
+
+    // Server time, for judging a release's expiry. Taken here, before anything
+    // can fail, because it is valid whatever else this response holds.
+    {
+        uint32_t se = resp["serverEpoch"] | 0;
+        if (se) { _srvEpoch = se; _srvAtMs = millis(); }
     }
 
     // ---- apply -------------------------------------------------------------
@@ -460,6 +494,21 @@ bool CloudSync::syncOnce(String& err) {
         } else {
             unlock();
         }
+    }
+
+    // ---- remote release ----------------------------------------------------
+    // The slow path: carried here for a door that could not poll its feed. The
+    // feed URL is the fast path, re-issued every sync so it never nears expiry.
+    if (_onRelease) {
+        if (resp["release"].is<JsonObject>()) {
+            considerRelease(resp["release"]["id"] | "", resp["release"]["exp"] | 0, "sync");
+        }
+        String feed = resp["releaseFeed"]["url"] | "";
+        if (feed.length() && feed != _feedUrl) {
+            _feedUrl  = feed;
+            _feedEtag = "";   // a new URL is a new conditional baseline
+        }
+        _feedFailures = 0;    // a good sync is a fresh start for the feed too
     }
 
     // ---- firmware offer ----------------------------------------------------
@@ -687,6 +736,110 @@ String CloudSync::consumeRestart() {
 }
 
 // -----------------------------------------------------------------------------
+//  Remote release
+// -----------------------------------------------------------------------------
+
+void CloudSync::setReleaseNote(const String& n) {
+    lock();
+    bool changed = _status.releaseNote != n;
+    _status.releaseNote = n;
+    unlock();
+    if (changed) say("[release] " + n);
+}
+
+void CloudSync::considerRelease(const String& id, uint32_t exp, const char* via) {
+    // Once per id: both paths carry the same request, and the feed keeps serving
+    // it after it has been acted on.
+    if (!id.length() || id == _releaseId || id == _lapsedReleaseId) return;
+    uint32_t now = serverNow();
+    if (!now || now > exp) {
+        // Late is not "better than never" here: the person it was for has gone.
+        // Not reported back, so the admin app shows it as not confirmed.
+        say("[release] " + id + " ignored - expired before it arrived (via " + via + ")");
+        _lapsedReleaseId = id;
+        return;
+    }
+    // Recorded before acting, in NVS, so a reboot straight after cannot repeat it.
+    _releaseId = id;
+    if (_settings) _settings->setString(KEY_RELEASE_ID, id);
+    say("[release] " + id + " - releasing (via " + via + ")");
+    _onRelease(id);
+    // Confirm it to the backend in seconds rather than at the next interval, so
+    // whoever pressed the button sees that it worked.
+    requestSyncNow();
+}
+
+void CloudSync::closeFeed() {
+    WiFiClientSecure* c = _feedClient;
+    if (!c) return;
+    delete _feedHttp;       // stop()s the connection
+    _feedHttp = nullptr;
+    c->stop();
+    _feedClient = nullptr;
+    delete c;
+}
+
+void CloudSync::pollReleaseFeed() {
+    if (!_feedClient) {
+        size_t freeHeap = ESP.getFreeHeap(), block = ESP.getMaxAllocHeap();
+        if (freeHeap < FEED_MIN_FREE || block < FEED_MIN_BLOCK) {
+            setReleaseNote("next sync only (low heap: " + String(freeHeap / 1024) +
+                           " KB free, largest block " + String(block / 1024) + " KB)");
+            return;
+        }
+        WiFiClientSecure* c = new WiFiClientSecure();
+        c->setCACert(CERT_DIGICERT_GLOBAL_ROOT_G2);
+        c->setHandshakeTimeout(10);
+        _feedHttp = new HTTPClient();
+        // Keeps the connection open after end(), so after the first poll each
+        // one costs a request on an established session -- not a handshake,
+        // which on this chip is the expensive part.
+        _feedHttp->setReuse(true);
+        _feedClient = c;
+    }
+    HTTPClient& http = *_feedHttp;
+    if (!http.begin(*_feedClient, _feedUrl)) {
+        closeFeed();
+        _feedFailures++;
+        return;
+    }
+    http.setTimeout(5000);
+    if (_feedEtag.length()) http.addHeader("If-None-Match", _feedEtag);
+    const char* want[] = { "ETag" };
+    http.collectHeaders(want, 1);
+
+    int rc = http.GET();
+    if (rc == 304 || rc == 404) {
+        // Unchanged, or this door has never been released: both are healthy.
+        http.end();
+    } else if (rc == 200) {
+        String etag = http.header("ETag");
+        String body = http.getString();
+        http.end();
+        JsonDocument doc;
+        if (!deserializeJson(doc, body)) {
+            considerRelease(doc["id"] | "", doc["exp"] | 0, "feed");
+        }
+        _feedEtag = etag;
+    } else if (rc == 403) {
+        // The URL expired or was revoked. The next sync issues a fresh one.
+        http.end();
+        closeFeed();
+        _feedUrl = "";
+        setReleaseNote("next sync only (feed URL refused; renewing at the next sync)");
+        return;
+    } else {
+        http.end();
+        closeFeed();       // reconnect from scratch next time
+        _feedFailures++;
+        setReleaseNote("feed error " + String(rc) + " (" + String(_feedFailures) + " in a row)");
+        return;
+    }
+    _feedFailures = 0;
+    setReleaseNote("polling the feed every " + String(RELEASE_POLL_MS / 1000) + " s");
+}
+
+// -----------------------------------------------------------------------------
 //  Task
 // -----------------------------------------------------------------------------
 
@@ -711,6 +864,7 @@ void CloudSync::task(void* pv) {
 
     for (;;) {
         if (!self->paired()) {
+            self->closeFeed();
             vTaskDelay(pdMS_TO_TICKS(5000));
             continue;
         }
@@ -820,12 +974,31 @@ void CloudSync::task(void* pv) {
         self->_nextAttemptAtMs = millis() + wait;
         self->unlock();
 
-        // Wake early if something asked for an immediate sync (e.g. just paired).
-        uint32_t waited = 0;
-        while (waited < wait) {
+        // Wait for the next sync, checking the release feed meanwhile. Wake early
+        // if something asked for an immediate sync (just paired, or a release
+        // that wants confirming). Only while healthy: a door that is backing off
+        // is failing to reach the backend, and polling harder will not help.
+        uint32_t start = millis(), lastPoll = 0;
+        bool polled = false;
+        while (millis() - start < wait) {
             if (self->_syncNow) { self->_syncNow = false; break; }
+            if (self->_feedPause) {
+                self->closeFeed();
+            } else if (!backingOff && self->_onRelease && self->_feedUrl.length() &&
+                       self->_feedFailures < 3 &&
+                       (!polled || millis() - lastPoll >= RELEASE_POLL_MS)) {
+                self->pollReleaseFeed();
+                lastPoll = millis();
+                polled = true;
+            }
             vTaskDelay(pdMS_TO_TICKS(250));
-            waited += 250;
         }
+        if (self->_onRelease && !self->_feedUrl.length()) {
+            self->setReleaseNote("next sync only (no feed URL yet)");
+        } else if (self->_feedFailures >= 3) {
+            self->setReleaseNote("next sync only (feed failing; retrying after the sync)");
+        }
+        // Never into a sync with the feed's TLS session still open.
+        self->closeFeed();
     }
 }

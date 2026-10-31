@@ -6,6 +6,7 @@
 enum EventType : uint8_t {
     EVT_CARD_TAP,
     EVT_EXIT_REQUEST,   // request-to-exit button; card fields unused
+    EVT_REMOTE_RELEASE, // released from the admin app; card.uid holds the request id
 };
 
 struct CardTapEvent {

@@ -68,6 +68,7 @@ public:
                               // closed again after that; cred holds "<secs>s"
         EVT_FW_UPDATED = 10,  // OTA applied; cred holds "<old>><new>"
         EVT_FW_FAILED  = 11,  // OTA attempted and refused/failed; cred holds target
+        EVT_REMOTE_RELEASE = 12,  // released from the admin app; cred holds the request id
     };
 
     // Why the decision went the way it did. Far more useful than a bare

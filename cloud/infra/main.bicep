@@ -135,6 +135,18 @@ resource firmwareContainer 'Microsoft.Storage/storageAccounts/blobServices/conta
   }
 }
 
+// One small blob per door, `release/<deviceId>`, which the door polls every few
+// seconds for a remote release. Read with a per-door, read-only user delegation
+// SAS issued at sync -- never public, and still no account key. Polling storage
+// costs per transaction, where holding a Function request open costs per second.
+resource releaseContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobService
+  name: 'release'
+  properties: {
+    publicAccess: 'None'
+  }
+}
+
 // Archive target for the retention job: events older than N months are written
 // here as JSON and deleted from Table Storage.
 resource archiveContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
