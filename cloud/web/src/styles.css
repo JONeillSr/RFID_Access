@@ -155,6 +155,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
   header .brand .pd{display:none}
   nav{padding:8px 16px;overflow-x:auto;scrollbar-width:none}
   .card input{margin-bottom:8px}
+  .card>select{width:100%;margin-bottom:8px}
   nav a{white-space:nowrap}
 
   table.cards thead{display:none}

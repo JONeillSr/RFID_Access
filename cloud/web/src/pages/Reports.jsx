@@ -108,6 +108,7 @@ export function Reports({ notify }) {
                 {data.count} event(s){data.truncated ? ' (truncated)' : ''}
               </p>
               <Table
+                cards
                 headers={['When', 'Door', 'Person', 'Result']}
                 rows={data.events.map((e) => [
                   <EventTime e={e} />,
@@ -141,6 +142,7 @@ function Available({ avail }) {
       {rows.length === 0
         ? <p class="muted">Nothing published yet. No door can update until an image exists for its board.</p>
         : <Table
+            cards
             headers={['Board', 'Version', 'Size', 'Published', 'Doors on this board']}
             rows={rows.map((r) => [
               <code>{r.board}</code>,
@@ -212,6 +214,7 @@ function Firmware({ data }) {
 
       <h3>What each door is running</h3>
       <Table
+        cards
         headers={['Door', 'Running', 'Updates in window', 'State']}
         rows={doors.map((d) => [
           <div><strong>{d.doorName}</strong><div class="muted">{d.deviceId}</div></div>,
@@ -248,6 +251,7 @@ function Firmware({ data }) {
               {data.unconfirmed > 0 && <> · <span class="bad">{data.unconfirmed} unconfirmed</span></>}
             </p>
             <Table
+              cards
               headers={['When', 'Door', 'Change', 'Result', 'Came back']}
               rows={data.events.map((e) => [
                 <EventTime e={e} />,
