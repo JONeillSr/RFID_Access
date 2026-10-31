@@ -166,6 +166,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
     text-transform:uppercase;letter-spacing:.04em;padding-top:2px}
   table.cards td.title{display:block;font-size:16px;margin-bottom:6px}
   table.cards td.acts{display:block;margin-top:8px;padding-top:10px;border-top:1px solid var(--raised)}
+  table.cards td.acts:empty{display:none}
   table.cards td.acts .pill{margin:0 6px 8px 0}
   table.cards .rowacts{flex-wrap:wrap;gap:8px}
   table.cards .rowacts button{background:var(--raised);border-color:var(--line);color:var(--text);

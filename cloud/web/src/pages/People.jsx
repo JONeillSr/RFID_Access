@@ -77,6 +77,7 @@ export function People({ notify, flash }) {
       {entra && <EntraPanel entra={entra} notify={notify} flash={flash} onSaved={load} />}
 
       <Table
+        cards
         headers={['Person', 'Managed by', 'Groups', 'Fobs', 'Status', '']}
         rows={people.map((p) => [
           <div>

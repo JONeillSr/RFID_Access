@@ -102,6 +102,7 @@ export function Dashboard({ notify, flash }) {
             normal exit looks the same until a request-to-exit sensor is fitted.
           </p>
           <Table
+            cards
             headers={['When', 'Door']}
             rows={forced.map((e) => [<EventTime e={e} />, e.doorName])}
           />
@@ -118,6 +119,7 @@ export function Dashboard({ notify, flash }) {
               : 'Enrolling a card requires the Operator role.'}
           </p>
           <Table
+            cards
             headers={['Card', 'Taps', 'Last seen', 'Door', '']}
             rows={unknown.map((c) => [
               <code>{c.cred}</code>,
@@ -145,6 +147,7 @@ export function Dashboard({ notify, flash }) {
 
       <h3>Recent activity</h3>
       <Table
+        cards
         headers={['When', 'Door', 'Person', 'Result']}
         rows={recent.map((e) => [
           <EventTime e={e} />,

@@ -68,6 +68,7 @@ export function Groups({ notify, flash }) {
       </p>
 
       <Table
+        cards
         headers={['Group', 'People', 'Doors', '']}
         rows={groups.map((g) => {
           const u = usage(g.groupId);
