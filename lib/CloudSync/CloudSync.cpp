@@ -287,6 +287,10 @@ bool CloudSync::syncOnce(String& err) {
     // offer the Release button for this door.
     if (_onRelease) req["remoteRelease"] = true;
     if (_releaseId.length()) req["releaseId"] = _releaseId;
+    // Diagnostics for the admin app. About 1.5 KB, well inside what a sync
+    // already carries, and fresh each time because heap and uptime are.
+    if (_statusSource) req["status"] = _statusSource();
+    req["ip"] = WiFi.localIP().toString();
 
     JsonArray evs = req["events"].to<JsonArray>();
     for (size_t i = 0; i < n; i++) {

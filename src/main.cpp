@@ -1294,6 +1294,9 @@ void setup() {
         cloudSync.setSafeToRestart([]() {
             return relayOffAt == 0;
         });
+        // The admin app's Status button shows this door's /status text, sent
+        // with each sync.
+        cloudSync.setStatusSource([]() { return webService.statusText(); });
         // A remote release goes through accessTask like the exit button, so the
         // relay is only ever driven from one task. Setting this is also what
         // tells the backend the door can be released remotely.

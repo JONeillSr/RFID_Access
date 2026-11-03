@@ -190,6 +190,7 @@ export async function touchDoor(
     /** '' clears an outstanding restart request once the door confirms it. */
     restartReqId?: string; restartDoneAt?: string;
     releaseDoneId?: string; releaseDoneAt?: string; hasRemoteRelease?: boolean;
+    statusText?: string; statusAt?: string; localIp?: string;
   }
 ): Promise<void> {
   await table('Doors').upsertEntity(

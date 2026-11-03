@@ -14,7 +14,7 @@
 
 import { app, HttpRequest, HttpResponseInit, InvocationContext } from '@azure/functions';
 import type { SyncRequest, SyncResponse } from '../../../shared/types';
-import { RESTART_REQUEST_TTL_MS, RELEASE_REQUEST_TTL_MS } from '../../../shared/types';
+import { RESTART_REQUEST_TTL_MS, RELEASE_REQUEST_TTL_MS, STATUS_TEXT_MAX } from '../../../shared/types';
 import { releaseFeedUrl } from '../releaseFeed';
 import { authenticateDevice } from '../auth';
 import {
@@ -204,6 +204,12 @@ export async function sync(
     ...(restartDone ? { restartReqId: '', restartDoneAt: new Date().toISOString() } : {}),
     ...(typeof body.remoteRelease === 'boolean' ? { hasRemoteRelease: body.remoteRelease } : {}),
     ...(newlyReleased ? { releaseDoneId: releaseId, releaseDoneAt: new Date().toISOString() } : {}),
+    // Diagnostics for the admin app's Status button. Stored on the row this
+    // write was making anyway, so it costs no extra transaction.
+    ...(typeof body.status === 'string'
+      ? { statusText: body.status.slice(0, STATUS_TEXT_MAX), statusAt: new Date().toISOString() }
+      : {}),
+    ...(typeof body.ip === 'string' && /^\d{1,3}(\.\d{1,3}){3}$/.test(body.ip) ? { localIp: body.ip } : {}),
   });
 
   ctx.log(

@@ -44,6 +44,11 @@ public:
     // Register a provider that appends project-specific status lines.
     void setStatusProvider(StatusProvider p) { _statusProvider = p; }
 
+    // The /status text itself (common fields plus the provider's lines), for a
+    // caller that wants to send it somewhere rather than serve it. Safe from any
+    // task: it only reads.
+    String statusText() { return statusBody(); }
+
     // ---- Reusable page footer ---------------------------------------------
     // The module serves a small client-side script at /footer.js that injects a
     // consistent footer (a row of links to the device's other pages) into ANY

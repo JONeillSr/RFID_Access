@@ -134,6 +134,12 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .toolbar{display:flex;align-items:center;gap:10px;margin-bottom:16px;flex-wrap:wrap}
 .toolbar .spacer{flex:1}
 
+/* A door's /status text, shown as the door formats it. Scrolls sideways rather
+   than rewrapping, because its columns only line up unwrapped. */
+.statustext{background:var(--bg);border:1px solid var(--line);border-radius:6px;
+  padding:10px 12px;font:12.5px/1.5 ui-monospace,Consolas,monospace;overflow-x:auto;
+  white-space:pre;margin:0;max-height:60vh}
+
 /* Consequence notes inside dialogs -- what this change will actually do. */
 .consequence{background:var(--accent-bg);border-left:3px solid var(--accent);
   padding:9px 12px;border-radius:4px;font-size:13px;margin:12px 0;color:var(--text)}

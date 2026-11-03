@@ -205,6 +205,13 @@ public:
     using ReleaseFn = std::function<void(const String& id)>;
     void setReleaseHandler(ReleaseFn fn) { _onRelease = fn; }
 
+    /// Text describing this door's state, sent with every sync along with its
+    /// local IP, so the admin app can show it to someone off the door's
+    /// network. Called on the sync task, outside this module's lock. Optional:
+    /// without it nothing is sent.
+    using StatusFn = std::function<String()>;
+    void setStatusSource(StatusFn fn) { _statusSource = fn; }
+
     /// Where this module reports what it decided.
     ///
     /// Without it, everything here is invisible: a refused or deferred firmware
@@ -262,6 +269,7 @@ private:
     // Remote release. Touched only on the sync task, except _feedPause and
     // _feedClient, which pair() uses to get the feed's TLS session out of the way.
     ReleaseFn _onRelease = nullptr;
+    StatusFn  _statusSource = nullptr;
     String    _releaseId;              // last release acted on (NVS), reported every sync
     // Last one that arrived too late. Kept apart from _releaseId on purpose:
     // that one is reported as done, and a lapsed release must not be.

@@ -178,7 +178,22 @@ export interface Door {
   releaseDoneId?: string;
   /** The door's firmware can be released remotely (reported by the door). */
   hasRemoteRelease?: boolean;
+  /**
+   * The door's own /status text as of its last sync, when it was received
+   * (ISO), and its address on the site network. Read-only diagnostics: lets
+   * the admin app show what /status says without being on the door's LAN.
+   * Absent before firmware 2.12.0.
+   */
+  statusText?: string;
+  statusAt?: string;
+  localIp?: string;
 }
+
+/**
+ * Longest status text the backend keeps. /status runs to about 1.5 KB; the
+ * cap only bounds what a misbehaving door can make the backend store.
+ */
+export const STATUS_TEXT_MAX = 8000;
 
 /**
  * How long a remote release stays deliverable.
@@ -333,6 +348,10 @@ export interface SyncRequest {
   remoteRelease?: boolean;
   /** Id of the last remote release this door acted on. */
   releaseId?: string;
+  /** The door's /status text, sent every sync. Absent before 2.12.0. */
+  status?: string;
+  /** The door's IPv4 address on the site network. */
+  ip?: string;
   events: DeviceEvent[];
 }
 

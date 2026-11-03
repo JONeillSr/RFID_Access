@@ -31,6 +31,9 @@ Each route is one function that dispatches on method, with the role checked
 | `v1/admin/groups` | Viewer | Admin | Admin |
 | `v1/admin/doors` | Viewer | Admin | — |
 | `v1/admin/doors/roster` | Viewer | — | — |
+| `v1/admin/doors/status` | Viewer | — | — |
+| `v1/admin/doors/restart` | — | Admin | — |
+| `v1/admin/doors/release` | — | Operator | — |
 | `v1/admin/doors/pairing-code` | — | Operator | — |
 | `v1/admin/entra-lookup` | Operator | — | — |
 | `v1/admin/entra-sweep/run` | — | Operator | — |
@@ -40,6 +43,12 @@ Each route is one function that dispatches on method, with the role checked
 `doors/roster` returns the effective roster a given door would receive — the
 group intersection resolved, which is the quickest way to answer "why can this
 person not open that door?" without reading the device.
+
+`doors/status` returns the door's own `/status` text and local IP as of its
+last sync (firmware 2.12.0+ sends both with every sync, as `status` and `ip`).
+They are stored on the `Doors` row the sync writes anyway, so they cost no extra
+transaction. Read-only, and only as fresh as that sync; the text is capped at
+`STATUS_TEXT_MAX` (8000) characters.
 
 **The `v1/` prefix on admin routes is not cosmetic.** `admin` is a *reserved
 route prefix* in the Azure Functions host — routes beginning `admin/` are

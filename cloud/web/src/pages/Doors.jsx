@@ -38,6 +38,7 @@ export function Doors({ notify, flash }) {
   const [code, setCode] = useState('');
   const [editing, setEditing] = useState(null);
   const [roster, setRoster] = useState(null);
+  const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -131,6 +132,15 @@ This door last checked in ${d.silentMinutes} minutes ago. If it ` +
     } catch (e) { setRoster(null); notify(e); }
   };
 
+  /** The door's own /status page, as it stood at its last sync. */
+  const showStatus = async (d) => {
+    try {
+      setStatus({ door: d.name, loading: true });
+      const r = await api(`/v1/admin/doors/status?deviceId=${encodeURIComponent(d.deviceId)}`);
+      setStatus({ door: d.name, ...r });
+    } catch (e) { setStatus(null); notify(e); }
+  };
+
   const canEdit = atLeast('Admin');
 
   return (
@@ -178,6 +188,7 @@ This door last checked in ${d.silentMinutes} minutes ago. If it ` +
                d.silentMinutes !== null && d.silentMinutes <= 2 && releaseState(d) !== 'pending' && (
                 <button class="small" onClick={() => release(d)}>Release</button>
               )}
+              <button class="small" onClick={() => showStatus(d)}>Status</button>
               <button class="small" onClick={() => showRoster(d)}>Who gets in?</button>
               {canEdit && <button class="small" onClick={() => setEditing({ ...d })}>Edit</button>}
               {canEdit && d.paired && restartState(d) !== 'pending' && (
@@ -208,6 +219,31 @@ This door last checked in ${d.silentMinutes} minutes ago. If it ` +
       {editing && (
         <DoorDialog door={editing} groups={groups} busy={busy}
                     onClose={() => setEditing(null)} onSave={save} />
+      )}
+
+      {status && (
+        <Modal title={`${status.door} status`} onClose={() => setStatus(null)}>
+          {status.loading ? <p class="muted">Loading…</p> : (
+            <>
+              <p class="muted">
+                {status.ip && <>Local address <code>{status.ip}</code>
+                  {' '}(<a href={`http://${status.ip}/status`} target="_blank" rel="noopener">open live
+                  </a> — only from the door's own network). </>}
+                {status.statusAt
+                  ? <>As the door reported it at its last sync,{' '}
+                      {new Date(status.statusAt).toLocaleString()}. Read-only.</>
+                  : null}
+              </p>
+              {status.status
+                ? <pre class="statustext">{status.status}</pre>
+                : <div class="consequence warn">
+                    This door has not reported its status. That needs firmware
+                    2.12.0 or later; it is running {status.firmware || 'an unknown version'}.
+                  </div>}
+            </>
+          )}
+          <Actions><button onClick={() => setStatus(null)}>Close</button></Actions>
+        </Modal>
       )}
 
       {roster && (

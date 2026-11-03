@@ -594,6 +594,37 @@ app.http('adminDoorRoster', {
 });
 
 /**
+ * What the door's own /status page said at its last sync, for someone who is
+ * not on the door's network. Read-only, and only as fresh as that sync.
+ */
+app.http('adminDoorStatus', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'v1/admin/doors/status',
+  handler: async (req: HttpRequest): Promise<HttpResponseInit> => {
+    const auth = await requireRole(req, 'Viewer');
+    if (isDenied(auth)) return auth.denied;
+    const deviceId = req.query.get('deviceId');
+    if (!deviceId) return bad('deviceId is required');
+    let d: any;
+    try {
+      d = await t('Doors').getEntity<any>('door', deviceId);
+    } catch {
+      return { status: 404, jsonBody: { error: 'no such door' } };
+    }
+    return ok({
+      deviceId,
+      door: d.name ?? deviceId,
+      firmware: d.firmware ?? '',
+      lastSeen: d.lastSeen ?? null,
+      ip: d.localIp ?? '',
+      statusAt: d.statusAt ?? null,
+      status: d.statusText ?? '',
+    });
+  },
+});
+
+/**
  * Health of the Entra sweep.
  *
  * Exists because the sweep fails OPEN: if Graph is unreachable it changes
