@@ -254,6 +254,10 @@ String WebService::statusBody() {
         if (minEver < 20000)      body += "  [LOW - allocations may be failing]";
         else if (minEver < 45000) body += "  [tight - TLS needs ~45 KB]";
         body += "\n";
+        if (_heapNote) {
+            String note = _heapNote();
+            if (note.length()) body += "          " + note + "\n";
+        }
     }
 
     if (_statusProvider) _statusProvider(body);

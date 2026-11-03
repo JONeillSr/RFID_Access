@@ -1297,6 +1297,15 @@ void setup() {
         // The admin app's Status button shows this door's /status text, sent
         // with each sync.
         cloudSync.setStatusSource([]() { return webService.statusText(); });
+        // The release feed keeps a TLS session open between syncs, which takes a
+        // large share of the heap; without this note that reads like a leak.
+        webService.setHeapNote([]() -> String {
+            if (!cloudSync.feedOpen()) return String();
+            size_t held = cloudSync.feedHeldBytes();
+            return String("(release feed connection open") +
+                   (held > 1 ? ", holding ~" + String(held / 1024) + " KB" : String()) +
+                   "; freed before each sync)";
+        });
         // A remote release goes through accessTask like the exit button, so the
         // relay is only ever driven from one task. Setting this is also what
         // tells the backend the door can be released remotely.

@@ -810,6 +810,7 @@ void CloudSync::closeFeed() {
     if (!c) return;
     delete _feedHttp;       // stop()s the connection
     _feedHttp = nullptr;
+    _feedHeld = 0;
     c->stop();
     _feedClient = nullptr;
     delete c;
@@ -831,6 +832,8 @@ void CloudSync::pollReleaseFeed() {
         // one costs a request on an established session -- not a handshake,
         // which on this chip is the expensive part.
         _feedHttp->setReuse(true);
+        _feedHeapBefore = freeHeap;
+        _feedHeld = 0;
         _feedClient = c;
     }
     HTTPClient& http = *_feedHttp;
@@ -872,6 +875,13 @@ void CloudSync::pollReleaseFeed() {
         return;
     }
     _feedFailures = 0;
+    // Once, after the first poll: by then the handshake is done and the
+    // session's buffers are what it will keep. Approximate -- other tasks
+    // allocate meanwhile -- but close enough to explain the Heap line.
+    if (!_feedHeld) {
+        size_t now = ESP.getFreeHeap();
+        _feedHeld = _feedHeapBefore > now ? _feedHeapBefore - now : 1;
+    }
     setReleaseNote("polling the feed every " + String(RELEASE_POLL_MS / 1000) + " s");
 }
 

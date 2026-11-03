@@ -205,6 +205,13 @@ public:
     using ReleaseFn = std::function<void(const String& id)>;
     void setReleaseHandler(ReleaseFn fn) { _onRelease = fn; }
 
+    /// Whether the release feed's TLS session is open right now, and roughly
+    /// how much heap it holds (0 until its first poll has been measured). It is
+    /// closed before every sync, so a heap reading taken while it is open is
+    /// not what a sync gets to work with -- this is what lets /status say so.
+    bool   feedOpen() const { return _feedClient != nullptr; }
+    size_t feedHeldBytes() const { return _feedClient ? _feedHeld : 0; }
+
     /// Text describing this door's state, sent with every sync along with its
     /// local IP, so the admin app can show it to someone off the door's
     /// network. Called on the sync task, outside this module's lock. Optional:
@@ -277,6 +284,8 @@ private:
     String    _lapsedReleaseId;
     String    _feedUrl, _feedEtag;     // the feed's SAS URL from sync, and its last ETag
     uint8_t   _feedFailures = 0;       // consecutive; the feed rests until next sync after a few
+    size_t    _feedHeapBefore = 0;     // free heap just before the session opened
+    volatile size_t _feedHeld = 0;     // what the open session holds, measured after its first poll
     // Both kept between polls. The HTTPClient too: its destructor stop()s the
     // connection, so a local one would cost a full handshake every poll.
     WiFiClientSecure* volatile _feedClient = nullptr;

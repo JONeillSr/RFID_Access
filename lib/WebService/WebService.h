@@ -44,6 +44,11 @@ public:
     // Register a provider that appends project-specific status lines.
     void setStatusProvider(StatusProvider p) { _statusProvider = p; }
 
+    // A note shown under the Heap line when non-empty -- for the project to say
+    // what is holding memory, so a reading is not mistaken for a leak.
+    using HeapNoteProvider = std::function<String()>;
+    void setHeapNote(HeapNoteProvider p) { _heapNote = p; }
+
     // The /status text itself (common fields plus the provider's lines), for a
     // caller that wants to send it somewhere rather than serve it. Safe from any
     // task: it only reads.
@@ -136,6 +141,7 @@ private:
     WebServer      _server;
     String         _hostname;
     StatusProvider _statusProvider = nullptr;
+    HeapNoteProvider _heapNote = nullptr;
 
     // --- footer link registry (seeded in begin(), extended per project) ---
     struct FooterLink {

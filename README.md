@@ -392,6 +392,14 @@ what large allocations actually compete for — a TLS handshake needs ~45 KB
 failure was once diagnosed from exactly this line while free heap looked
 entirely healthy.
 
+From 2.12.3 a note under the line says when the **release feed** connection is
+open and roughly how much it holds (about 55 KB). The feed keeps a TLS session
+open between syncs to check for remote releases every 3 seconds, and closes it
+before each sync, so a reading taken while it is open understates what a sync
+gets. Fragmentation shows as a small largest block with the feed **closed**. The
+copy the admin app shows (**Doors → Status**) is taken during a sync, with the
+feed closed, so it is the one to judge by.
+
 #### Write endpoints go read-only once a door is paired
 
 `/api/add`, `/api/rename`, `/api/remove` and `POST /api/schedule` answer **409**
