@@ -376,7 +376,7 @@ app-specific status fields.
 | `/api/schedule` | GET current schedule/state, POST to update |
 | `/api/add` `/api/rename` `/api/remove` | fob management (POST, JSON) |
 | `/api/list` `/api/taps` | roster and recent taps (GET, JSON) |
-| `/status` | live status page: device ID, door and site, WiFi IP, mDNS name, uptime, **heap** (free / min since boot / largest block), OLED, **`Reader:`** running line format (and any pending change), time **and how long since NTP**, schedule, **`Relay:`** hold per grant and result-screen hold, **`Contact:`** door state, **`WiFi:`** network and any move in progress, enrolled count, **`Backend:`** host, cloud sync state, **`Retry:`** backoff when not on the normal poll, **`Remote:`** how a remote release will arrive (polling the feed every 3 s, or next sync only and why), event spool, last tap |
+| `/status` | live status page: device ID, door and site, WiFi IP, **`Signal:`** strength in dBm with a rating, channel and access point (BSSID), mDNS name, uptime, **heap** (free / min since boot / largest block), OLED, **`Reader:`** running line format (and any pending change), time **and how long since NTP**, schedule, **`Relay:`** hold per grant and result-screen hold, **`Contact:`** door state, **`WiFi:`** network and any move in progress, enrolled count, **`Backend:`** host, cloud sync state, **`Retry:`** backoff when not on the normal poll, **`Remote:`** how a remote release will arrive (polling the feed every 3 s, or next sync only and why), event spool, last tap |
 
 The heap line is worth reading properly, because two of its three numbers have
 already been the difference between a diagnosis and a guess:

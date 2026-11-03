@@ -220,6 +220,21 @@ String WebService::statusBody() {
     String body;
     body.reserve(2048);
     body += "WiFi:     " + WiFi.localIP().toString() + "\n";
+
+    // Link quality, because a weak signal looks like everything else first: slow
+    // pages, failed TLS handshakes, interrupted downloads, and a heap fragmented
+    // by retransmits holding buffers. Front Door showed all of those while an
+    // identical door on the bench showed none. The access point is named by its
+    // BSSID, since one SSID is often served by several.
+    if (WiFi.status() == WL_CONNECTED) {
+        int rssi = WiFi.RSSI();
+        const char* q = rssi >= -60 ? "strong" : rssi >= -67 ? "good"
+                      : rssi >= -75 ? "fair - marginal for TLS"
+                      : rssi >= -80 ? "WEAK - expect failed syncs"
+                                    : "VERY WEAK";
+        body += "Signal:   " + String(rssi) + " dBm (" + q + "), channel " +
+                String(WiFi.channel()) + ", AP " + WiFi.BSSIDstr() + "\n";
+    }
     if (_hostname.length())
         body += "mDNS:     " + _hostname + ".local\n";
     body += "Uptime:   " + String(millis() / 1000) + "s\n";
