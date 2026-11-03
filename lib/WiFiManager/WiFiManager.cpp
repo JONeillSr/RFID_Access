@@ -94,7 +94,17 @@ void WiFiManager::clearCredentials() {
 
 void WiFiManager::startSTA(const String& ssid, const String& pass) {
     WiFi.mode(WIFI_STA);
+    noModemSleep();
     WiFi.begin(ssid.c_str(), pass.c_str());
+}
+
+// Modem sleep off. The ESP32 default lets the radio doze between beacons, which
+// is right for a battery and wrong for a door on mains power: every exchange
+// waits for the next beacon, so pages load slowly and, on a marginal link,
+// TLS reads time out. Front Door at -75 dBm showed both. Re-applied after each
+// mode change, which is where the core may reset it.
+void WiFiManager::noModemSleep() {
+    WiFi.setSleep(false);
 }
 
 // Start (or restart) the mDNS responder so the device is reachable as
@@ -328,6 +338,7 @@ void WiFiManager::startAP() {
 
     // WIFI_AP_STA so we can still scan for nearby networks while the AP is up.
     WiFi.mode(WIFI_AP_STA);
+    noModemSleep();
 
     // The core's auto-reconnect treats "network not found" as transient and
     // retries it back to back, which would keep the radio scanning for as long
@@ -572,6 +583,7 @@ void WiFiManager::openSetupAP() {
     // AP_STA keeps the existing station link up: the point of this is to offer
     // the setup network WITHOUT giving up the one that works.
     WiFi.mode(WIFI_AP_STA);
+    noModemSleep();
     if (strlen(_apPass) >= 8) WiFi.softAP(_apSsid, _apPass);
     else                      WiFi.softAP(_apSsid);
     delay(100);
@@ -599,6 +611,7 @@ void WiFiManager::closeSetupAP() {
     }
     WiFi.softAPdisconnect(true);
     WiFi.mode(WIFI_STA);
+    noModemSleep();
     _setupAP = false;
     Serial.println("[WiFi] Setup AP closed.");
 }

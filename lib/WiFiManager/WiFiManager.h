@@ -114,6 +114,8 @@ public:
 private:
     enum State { STATE_STA, STATE_AP };
 
+    static void noModemSleep();   // radio stays awake; see WiFiManager.cpp
+
     const char*   _apSsid;
     const char*   _apPass;
     uint32_t      _connectTimeout;
