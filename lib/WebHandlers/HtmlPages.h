@@ -66,8 +66,9 @@ const char CONFIG_HTML[] PROGMEM = R"HTML(
 <header><h1>Manage Fobs</h1><a class="btn" href="/">&larr; Dashboard</a></header>
 <div class="wrap">
  <div class="managed" id="managed"><strong>Managed centrally.</strong>
-  This door is paired with the admin app, which is the only writer for its roster
-  and schedule. Changes made there arrive on the next sync. Unpair on
+  This door is paired with the admin app, which is the only writer for its fobs
+  and unlock schedule: fobs under <b>People</b>, the schedule under
+  <b>Doors &rarr; Edit</b>. Changes made there arrive on the next sync. Unpair on
   <a href="/setup" style="color:#e0a458">/setup</a> to manage it locally again.</div>
  <h2>Enroll a new fob</h2>
  <div class="enroll" id="enroll"><span class="muted">Tap an un-enrolled fob on the reader; it will appear here.</span></div>
@@ -100,7 +101,8 @@ function renderEnroll(unknown){
   // Still show the card -- reading it here is how you get the number to type
   // into the admin app, and that is the whole job now.
   eb.innerHTML='<div>Unknown card: <span class="uid">'+unknown+'</span></div>'+
-   '<div class="muted" style="margin-top:8px">Enrol this card in the admin app. '+
+   '<div class="muted" style="margin-top:8px">Enrol this card in the admin app: '+
+   '<b>Dashboard &rarr; Unknown cards seen &rarr; Enroll</b>. '+
    'It reaches this door on the next sync.</div>';
  } else if(unknown){
   eb.innerHTML='<div>Unknown card: <span class="uid">'+unknown+'</span></div>'+
@@ -164,7 +166,7 @@ async function saveSched(){let days=0;
    body:JSON.stringify({enabled:document.getElementById('s_en').checked,
     start:mm(document.getElementById('s_start').value),
     end:mm(document.getElementById('s_end').value),days:days})});
-  if(r.status===409){st.textContent='✗ Managed centrally — set the schedule in the admin app';
+  if(r.status===409){st.textContent='✗ Managed centrally — set the schedule in the admin app under Doors → Edit';
    setTimeout(loadSched,1500);return;}
   if(!r.ok)throw 0;
   st.textContent='✓ Schedule saved';

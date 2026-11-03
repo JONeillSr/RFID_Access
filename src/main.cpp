@@ -818,7 +818,7 @@ void setup() {
                 html += "</select>";
                 html += "<div class='hint'>";
                 if (managed) {
-                    html += "Set in the admin app, which is the only writer while this "
+                    html += "Set in the admin app under <b>Doors &rarr; Edit</b>, which is the only writer while this "
                             "door is paired. Unpair below to set it here again.<br>";
                 }
                 html += "Takes effect after a <b>reboot</b>. Running now: <b>" +
@@ -844,7 +844,7 @@ void setup() {
                         String(gRelayHoldMs) + "'" + dis + ">";
                 html += "<div class='hint'>";
                 if (managedRelay) {
-                    html += "Set in the admin app, which is the only writer while this "
+                    html += "Set in the admin app under <b>Doors &rarr; Edit</b>, which is the only writer while this "
                             "door is paired. Unpair below to set it here again.<br>";
                 }
                 html += "How long the strike stays released after a grant, exit press or "
@@ -875,7 +875,7 @@ void setup() {
                 html += "</select>";
                 html += "<div class='hint'>";
                 if (managedContact) {
-                    html += "Set in the admin app, which is the only writer while this door is "
+                    html += "Set in the admin app under <b>Doors &rarr; Edit</b>, which is the only writer while this door is "
                             "paired. Unpair below to set it here again.<br>";
                 }
                 html += "A magnetic contact on the frame, <b>closed when the door is "
