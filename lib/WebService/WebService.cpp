@@ -214,7 +214,11 @@ void WebService::handleFooterScript() {
 // Build just the status text body (no HTML shell). Used by both the page and
 // the /status.txt content endpoint that the page polls.
 String WebService::statusBody() {
+    // Reserved up front: it is built from dozens of appends, and each regrowth
+    // of a string this size leaves a hole in the heap. It also goes up with
+    // syncs now, so it is built on a task that needs large blocks for TLS.
     String body;
+    body.reserve(2048);
     body += "WiFi:     " + WiFi.localIP().toString() + "\n";
     if (_hostname.length())
         body += "mDNS:     " + _hostname + ".local\n";

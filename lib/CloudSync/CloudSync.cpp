@@ -30,6 +30,26 @@ static const size_t MAX_EVENTS_PER_SYNC = 40;
 // than failing deep inside mbedTLS with an opaque error.
 static const size_t MIN_FREE_HEAP = 60000;
 
+// A fragmented heap: plenty free, but no single run large enough for a TLS
+// session's buffers. Free heap cannot see it -- the 2.12.0 failure on Front
+// Door was 118 KB free with a 35 KB largest block, and every sync failed while
+// opening the connection. Below this block size a failing door is presumed to
+// be failing for that reason (see the self-heal in the task loop). Syncs are
+// still ATTEMPTED below it: the true threshold is not pinned down, and a door
+// that can still connect must not be stopped by a guess.
+static const size_t SYNC_MIN_BLOCK = 45000;
+
+// Failing syncs with a fragmented heap for this long, and the door restarts
+// itself -- only while the strike is not releasing. A restart is the one thing
+// that reliably defragments, and a door that silently stops syncing is worse
+// than one that is locked for a few seconds.
+static const uint32_t HEAL_AFTER_MS = 15UL * 60 * 1000;
+
+// The status text (~1.5 KB, built from many small strings) goes up at most this
+// often, and only with a healthy largest block: building it every 30 s was the
+// likeliest source of the fragmentation above.
+static const uint32_t STATUS_EVERY_MS = 5UL * 60 * 1000;
+
 // The release feed holds a TLS session open between syncs, so it asks for more
 // room than a sync does: the session plus MIN_FREE_HEAP to spare, and a largest
 // block a TLS record buffer fits in. Below this the feed simply does not run and
@@ -287,9 +307,13 @@ bool CloudSync::syncOnce(String& err) {
     // offer the Release button for this door.
     if (_onRelease) req["remoteRelease"] = true;
     if (_releaseId.length()) req["releaseId"] = _releaseId;
-    // Diagnostics for the admin app. About 1.5 KB, well inside what a sync
-    // already carries, and fresh each time because heap and uptime are.
-    if (_statusSource) req["status"] = _statusSource();
+    // Diagnostics for the admin app, at most every STATUS_EVERY_MS and only
+    // while the heap has room to spare -- see STATUS_EVERY_MS.
+    if (_statusSource && ESP.getMaxAllocHeap() >= SYNC_MIN_BLOCK &&
+        (_lastStatusMs == 0 || millis() - _lastStatusMs >= STATUS_EVERY_MS)) {
+        req["status"] = _statusSource();
+        _lastStatusMs = millis();
+    }
     req["ip"] = WiFi.localIP().toString();
 
     JsonArray evs = req["events"].to<JsonArray>();
@@ -307,8 +331,15 @@ bool CloudSync::syncOnce(String& err) {
         o["cred"]       = r.cred;
     }
 
+    // Sized once, so the body is one allocation rather than a run of growing
+    // ones -- each regrowth leaves a hole behind it.
     String body;
+    body.reserve(measureJson(req) + 1);
     serializeJson(req, body);
+
+    // Measured before the TLS session takes its share, so a failure below says
+    // what the connection actually had to work with.
+    size_t block = ESP.getMaxAllocHeap();
 
     // ---- send --------------------------------------------------------------
     WiFiClientSecure client;
@@ -324,7 +355,8 @@ bool CloudSync::syncOnce(String& err) {
 
     int rc = http.POST(body);
     if (rc <= 0) {
-        err = "connection failed (" + String(rc) + ")";
+        err = "connection failed (" + String(rc) + "), largest block " +
+              String(block / 1024) + " KB";
         http.end();
         return false;
     }
@@ -891,6 +923,7 @@ void CloudSync::task(void* pv) {
             self->_status.lastError = err;
         }
         uint16_t failures = self->_status.failures;
+        uint32_t lastOkMs = self->_status.lastSuccessMs;
         // Take the queued offer, if any. Copied and cleared under the lock so a
         // second sync cannot start the same download twice.
         String fwVersion = self->_pendingFwVersion;
@@ -955,6 +988,22 @@ void CloudSync::task(void* pv) {
             // door's history is attributable to a request.
             eventLog.append(EventLog::EVT_CONFIG, EventLog::R_NONE, false, "restart=remote");
             self->say("[cloud] restarting now (" + id + ")");
+            delay(250);
+            ESP.restart();
+        }
+
+        // Self-heal from a fragmented heap. Only when syncs are failing AND the
+        // largest block is too small for a TLS session, for HEAL_AFTER_MS --
+        // counted from the last success, or from boot if there has been none,
+        // so a door cannot restart on a loop shorter than that. Never while the
+        // strike is releasing; the next failed sync tries again.
+        if (!ok && ESP.getMaxAllocHeap() < SYNC_MIN_BLOCK &&
+            millis() - lastOkMs >= HEAL_AFTER_MS &&
+            self->_safeToRestart && self->_safeToRestart()) {
+            String m = "restarting: no sync for " + String((millis() - lastOkMs) / 60000) +
+                       " min, largest heap block " + String(ESP.getMaxAllocHeap() / 1024) + " KB";
+            self->say("[cloud] " + m);
+            eventLog.append(EventLog::EVT_CONFIG, EventLog::R_NONE, false, "restart=heap");
             delay(250);
             ESP.restart();
         }

@@ -239,8 +239,8 @@ This door last checked in ${d.silentMinutes} minutes ago. If it ` +
                   {' '}(<a href={`http://${status.ip}/status`} target="_blank" rel="noopener">open live
                   </a> — only from the door's own network). </>}
                 {status.statusAt
-                  ? <>As the door reported it at its last sync,{' '}
-                      {new Date(status.statusAt).toLocaleString()}. Read-only.</>
+                  ? <>As the door last reported it, {new Date(status.statusAt).toLocaleString()}.
+                      Doors send this every 5 minutes. Read-only.</>
                   : null}
               </p>
               {status.status

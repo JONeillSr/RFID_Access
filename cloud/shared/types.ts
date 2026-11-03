@@ -348,7 +348,11 @@ export interface SyncRequest {
   remoteRelease?: boolean;
   /** Id of the last remote release this door acted on. */
   releaseId?: string;
-  /** The door's /status text, sent every sync. Absent before 2.12.0. */
+  /**
+   * The door's /status text. Every sync on 2.12.0; from 2.12.2 at most every
+   * 5 minutes, and only while the door's heap has room to spare. Absent before
+   * 2.12.0.
+   */
   status?: string;
   /** The door's IPv4 address on the site network. */
   ip?: string;

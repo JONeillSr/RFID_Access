@@ -270,6 +270,7 @@ private:
     // _feedClient, which pair() uses to get the feed's TLS session out of the way.
     ReleaseFn _onRelease = nullptr;
     StatusFn  _statusSource = nullptr;
+    uint32_t  _lastStatusMs = 0;     // when the status text last went up
     String    _releaseId;              // last release acted on (NVS), reported every sync
     // Last one that arrived too late. Kept apart from _releaseId on purpose:
     // that one is reported as done, and a lapsed release must not be.

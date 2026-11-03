@@ -45,7 +45,8 @@ group intersection resolved, which is the quickest way to answer "why can this
 person not open that door?" without reading the device.
 
 `doors/status` returns the door's own `/status` text and local IP as of its
-last sync (firmware 2.12.0+ sends both with every sync, as `status` and `ip`).
+last report (firmware 2.12.0+ sends them as `status` and `ip`; from 2.12.2 the
+text goes up at most every 5 minutes, and only while the door's heap has room).
 They are stored on the `Doors` row the sync writes anyway, so they cost no extra
 transaction. Read-only, and only as fresh as that sync; the text is capped at
 `STATUS_TEXT_MAX` (8000) characters.
