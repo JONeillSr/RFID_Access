@@ -140,6 +140,16 @@ button:disabled{opacity:.5;cursor:not-allowed}
   padding:10px 12px;font:12.5px/1.5 ui-monospace,Consolas,monospace;overflow-x:auto;
   white-space:pre;margin:0;max-height:60vh}
 
+/* Unlock schedule in the door dialog: the two times side by side, days as
+   toggles big enough to tap. */
+.schedrow{display:flex;gap:12px}
+.schedrow .field{flex:1}
+.days{display:flex;flex-wrap:wrap;gap:6px}
+.day{border:1px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer;
+  font-size:13px;color:var(--muted);user-select:none}
+.day input{display:none}
+.day.on{background:var(--accent-bg);border-color:var(--accent);color:var(--accent)}
+
 /* Consequence notes inside dialogs -- what this change will actually do. */
 .consequence{background:var(--accent-bg);border-left:3px solid var(--accent);
   padding:9px 12px;border-radius:4px;font-size:13px;margin:12px 0;color:var(--text)}

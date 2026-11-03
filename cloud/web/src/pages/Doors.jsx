@@ -31,6 +31,15 @@ function releaseState(d) {
 /** Only recent outcomes are worth a pill; last week's release is history. */
 const recent = (iso, mins) => iso && Date.now() - Date.parse(iso) < mins * 60000;
 
+/** Bit 0 = Sunday, as the door counts them; shown Monday first. */
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const toHHMM = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+const fromHHMM = (s) => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(s || '');
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+
 export function Doors({ notify, flash }) {
   const [doors, setDoors] = useState([]);
   const [groups, setGroups] = useState([]);
@@ -292,6 +301,12 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
     doorContact: cfg.doorContact === true,
     doorHeldSec: cfg.doorHeldSec ?? '',
     openSetupPortal: cfg.openSetupPortal === true,
+    // Unlock schedule. A door with none stored here is offered weekday office
+    // hours as a starting point, but nothing is sent until it is switched on.
+    schedEnabled: cfg.schedule?.enabled === true,
+    schedStart: toHHMM(cfg.schedule?.startMin ?? 8 * 60),
+    schedEnd: toHHMM(cfg.schedule?.endMin ?? 17 * 60),
+    schedDays: cfg.schedule?.daysMask ?? 0b0111110,
   });
 
   // Whether the board can take a contact at all. The C6 and C3 have no free
@@ -310,7 +325,10 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
   const resultOk = rec.resultHoldMs === '' || (Number.isFinite(num(rec.resultHoldMs)) && num(rec.resultHoldMs) > 0);
   const heldOk = rec.doorHeldSec === '' ||
     (Number.isInteger(num(rec.doorHeldSec)) && num(rec.doorHeldSec) >= 0 && num(rec.doorHeldSec) <= 3600);
-  const valid = rec.name.trim() && relayOk && resultOk && heldOk;
+  const startMin = fromHHMM(rec.schedStart), endMin = fromHHMM(rec.schedEnd);
+  const schedOk = !rec.schedEnabled ||
+    (startMin !== null && endMin !== null && startMin !== endMin && rec.schedDays !== 0);
+  const valid = rec.name.trim() && relayOk && resultOk && heldOk && schedOk;
 
   const submit = () => {
     // Only send config keys that have a value, and preserve anything already in
@@ -323,6 +341,14 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
     config.doorContact = rec.doorContact;
     config.openSetupPortal = rec.openSetupPortal;
     if (rec.doorHeldSec === '') delete config.doorHeldSec; else config.doorHeldSec = num(rec.doorHeldSec);
+    // Sent once the admin app has ever owned the schedule, so switching it off
+    // reaches the door. Never sent for a door that has had none here, which
+    // would switch off a schedule set on the door's own page before pairing.
+    if (rec.schedEnabled || cfg.schedule) {
+      config.schedule = rec.schedEnabled
+        ? { enabled: true, startMin, endMin, daysMask: rec.schedDays }
+        : { ...(cfg.schedule ?? {}), enabled: false };
+    }
 
     onSave({
       deviceId: rec.deviceId, name: rec.name, site: rec.site,
@@ -360,6 +386,52 @@ function DoorDialog({ door, groups, busy, onClose, onSave }) {
              error={resultOk ? null : 'Must be a positive number.'}>
         <Text value={rec.resultHoldMs} onInput={(v) => set('resultHoldMs', v)} placeholder="4000" />
       </Field>
+
+      <Check label="Unlock on a schedule" checked={rec.schedEnabled}
+             onChange={(v) => set('schedEnabled', v)}
+             hint="Holds the door unlocked, no fob needed, during a set window on chosen days." />
+
+      {rec.schedEnabled && (
+        <>
+          <div class="schedrow">
+            <Field label="Unlocked from">
+              <input type="time" value={rec.schedStart} onInput={(e) => set('schedStart', e.currentTarget.value)} />
+            </Field>
+            <Field label="until">
+              <input type="time" value={rec.schedEnd} onInput={(e) => set('schedEnd', e.currentTarget.value)} />
+            </Field>
+          </div>
+          <div class="field">
+            <span class="lbl">On</span>
+            <div class="days">
+              {DAY_ORDER.map((bit) => (
+                <label key={bit} class={`day ${(rec.schedDays >> bit) & 1 ? 'on' : ''}`}>
+                  <input type="checkbox" checked={((rec.schedDays >> bit) & 1) === 1}
+                         onChange={() => set('schedDays', rec.schedDays ^ (1 << bit))} />
+                  {DAY_NAMES[bit]}
+                </label>
+              ))}
+            </div>
+            {!schedOk && <span class="bad hint">
+              {rec.schedDays === 0 ? 'Pick at least one day.' : 'The window needs a start and an end that differ.'}
+            </span>}
+          </div>
+          <div class="consequence">
+            Times are the door's local time (US Eastern).
+            {startMin !== null && endMin !== null && endMin < startMin &&
+              <> This window runs <strong>overnight</strong>: it starts on the chosen days and ends the next morning.</>}
+            {' '}The door stays <strong>locked</strong> whenever it does not know the time — after a
+            power cut with no internet, for example — so a schedule never fails open.
+          </div>
+        </>
+      )}
+
+      {!rec.schedEnabled && !cfg.schedule && (
+        <div class="consequence">
+          A schedule set on this door's own page before it was paired keeps running until
+          one is set here. <strong>Status</strong> shows what the door is actually doing.
+        </div>
+      )}
 
       <Field label="Reader format"
              hint={`The line format this door's reader speaks. Applied when the door next restarts${
